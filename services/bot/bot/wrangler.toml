@@ -21,3 +21,6 @@ database_id = "ca854300-719e-4fc3-a0d9-11f7b9c11e73"
 JOBS_URL = "https://jobs.flisk.si"
 BOT_NAME = "Flisk Bot"
 BOT_HOMEPAGE = "https://bot.flisk.si"
+INFERENCE_URL = "https://inference.flisk.si"
+INFERENCE_MODEL = "flisk-wolf-chat"
+# Secret, not here: bunx wrangler@4 secret put INFERENCE_KEY   (a key from inference.flisk.si)

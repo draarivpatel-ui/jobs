@@ -7,7 +7,7 @@
 import { jobsClient, tick, TERMINAL, type Checkpoint, type JobsClient } from './jobs';
 import type { BotStore } from './stores';
 import { doWork, parseAsk } from './work';
-import { boardOptions, boardSessions, withHeader } from './rma';
+import { boardOptions, boardSessions, guessRole, withHeader } from './rma';
 import { FONTS, PAGE } from './rma.generated';
 
 export interface BotConfig {
@@ -21,6 +21,26 @@ export interface BotConfig {
   homepage?: string;
   idleTimeoutMs?: number;
   durability?: string;
+  /** Flisk Inference (OpenAI-compatible). Without a key the bot stays model-free and answers as before. */
+  inference?: { url: string; key: string; model: string };
+}
+
+/** One chat call to Flisk Inference. Returns the answer and tokens used, or null when it could not answer. */
+export async function askInference(cfg: NonNullable<BotConfig['inference']>, system: string, user: string, f: typeof fetch = fetch): Promise<{ text: string; tokens: number } | null> {
+  try {
+    const r = await f(`${cfg.url.replace(/\/+$/, '')}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${cfg.key}` },
+      body: JSON.stringify({ model: cfg.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: 400 }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) return null;
+    const d: any = await r.json();
+    const text = String(d?.choices?.[0]?.message?.content ?? '').trim();
+    return text ? { text, tokens: Number(d?.usage?.total_tokens) || 0 } : null;
+  } catch {
+    return null;
+  }
 }
 
 const ID = /^[A-Za-z0-9_-]{1,128}$/;
@@ -44,11 +64,21 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
   // A turn in a chat session: check a repo or a page right now. In a job session: say where the job stands.
   async function runTurn(checkpoint: Checkpoint, input: string): Promise<string> {
     const j = checkpoint.job;
+    const llm = async (system: string, fallback: string) => {
+      if (!cfg.inference) return fallback;
+      const a = await askInference(cfg.inference, system, input, f);
+      if (!a) return fallback;
+      checkpoint.model = cfg.inference.model;
+      checkpoint.tokens = (checkpoint.tokens ?? 0) + a.tokens;
+      return a.text;
+    };
     if (j) {
-      return `This session is the job "${j.title}" (${j.kind}). Step: ${j.step}${TERMINAL.includes(j.step) ? ' (finished)' : ''}.${j.result ? `\nResult: ${j.result.summary} ${j.result.url}` : ''}\nIts public record: ${cfg.boardUrl}/job/${j.id}`;
+      const status = `This session is the job "${j.title}" (${j.kind}). Step: ${j.step}${TERMINAL.includes(j.step) ? ' (finished)' : ''}.${j.result ? `\nResult: ${j.result.summary} ${j.result.url}` : ''}\nIts public record: ${cfg.boardUrl}/job/${j.id}`;
+      const asked = /status|step|result|score|where|job|done/i.test(input);
+      return asked ? status : llm(`You are ${cfg.name}. This session is a finished or running job. Answer briefly and truthfully. Facts: ${status}`, status);
     }
     const ask = parseAsk(input);
-    if (!ask) return HELP;
+    if (!ask) return llm(`You are ${cfg.name}. ${HELP} Answer the user's question briefly; if it is about scoring a README or checking an address, ask for the repo (owner/name) or the https:// address.`, HELP);
     if (!checkpoint.title) checkpoint.title = ask.kind === 'readme-score' ? `README of ${ask.input.repo}` : `AI search check of ${ask.input.url}`;
     try {
       const r = await doWork(ask.kind, ask.input);
@@ -152,6 +182,7 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
       if (path === '/api/options' && req.method === 'GET') return json(200, boardOptions());
       // The page also asks for the kitchen board and the ratings. The bot has neither: empty answers, not 404s.
       if (path === '/api/umux' && req.method === 'GET') return json(200, { ratings: [] });
+      if (path === '/api/detect' && req.method === 'GET') return json(200, { role: guessRole(url.searchParams.get('text') ?? ''), agent: null });
       if ((path === '/api/tasks' || path === '/api/kitchen') && req.method === 'GET') return json(200, { tasks: [], lanes: [] });
       if ((path === '/api/send' || path === '/api/new') && req.method === 'POST') {
         let body: any = {};

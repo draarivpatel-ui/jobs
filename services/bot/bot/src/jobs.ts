@@ -18,6 +18,9 @@ export interface Checkpoint {
   sessionId: string;
   messages: Msg[];
   title?: string;
+  /** Model that answered last, with tokens used: set only when the bot used Flisk Inference. */
+  model?: string;
+  tokens?: number;
   job?: { id: string; title: string; kind: Kind; input: Record<string, string>; step: Step; tries: number; result?: WorkResult; boardUrl: string };
 }
 

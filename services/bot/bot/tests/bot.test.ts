@@ -190,3 +190,45 @@ test('the D1 store saves, lists, sweeps chats only, and keeps the board key', as
   await s.writeKey('fj_def');
   expect(await s.readKey()).toBe('fj_def');
 });
+
+// Flisk Inference in chat, the New session type guess and the sessions' model label.
+import { createBot, askInference } from '../src/app';
+import { guessRole } from '../src/rma';
+
+function memStore() {
+  const m = new Map<string, Checkpoint>();
+  return { load: (id: string) => structuredClone(m.get(id)) ?? { sessionId: id, messages: [] }, save: (c: Checkpoint) => void m.set(c.sessionId, structuredClone(c)), list: () => [...m.keys()].map((sessionId) => ({ sessionId })), delete: (id: string) => void m.delete(id), all: m } as any;
+}
+
+test('chat that is not a repo or an address is answered by Flisk Inference, and the session shows model and tokens', async () => {
+  let sent: any;
+  const f = (async (_u: string, init: RequestInit) => {
+    sent = JSON.parse(String(init.body));
+    return new Response(JSON.stringify({ choices: [{ message: { content: '4' } }], usage: { total_tokens: 21 } }));
+  }) as unknown as typeof fetch;
+  const store = memStore();
+  const bot = createBot({ name: 'Flisk Bot', boardUrl: 'http://b', jobsUrl: '', inference: { url: 'http://inf', key: 'k', model: 'flisk-wolf-chat' } }, store, f);
+  const r = await bot.handle(new Request('http://x/api/new', { method: 'POST', body: JSON.stringify({ text: 'what is 2+2?' }) }));
+  const { id } = (await r.json()) as { id: string };
+  const c = store.all.get(id) as Checkpoint;
+  expect(c.messages.at(-1)?.content).toBe('4');
+  expect(c.model).toBe('flisk-wolf-chat');
+  expect(c.tokens).toBe(21);
+  expect(sent.model).toBe('flisk-wolf-chat');
+});
+
+test('without a key, or when inference fails, the bot gives its fixed help text', async () => {
+  const down = (async () => new Response('no', { status: 500 })) as unknown as typeof fetch;
+  expect(await askInference({ url: 'http://inf', key: 'k', model: 'm' }, 's', 'u', down)).toBeNull();
+  const bot = createBot({ name: 'Flisk Bot', boardUrl: 'http://b', jobsUrl: '', inference: { url: 'http://inf', key: 'k', model: 'm' } }, memStore(), down);
+  const s = await (await bot.handle(new Request('http://x/api/new', { method: 'POST', body: JSON.stringify({ text: 'hello' }) }))).json();
+  expect(s).toHaveProperty('id');
+});
+
+test('/api/detect gives the agent type for what was typed', async () => {
+  expect(guessRole('make a logo for a bakery')).toBe('Design');
+  expect(guessRole('fix the crash on login')).toBe('Bug');
+  const bot = createBot({ name: 'Flisk Bot', boardUrl: 'http://b', jobsUrl: '' }, memStore());
+  const d = await (await bot.handle(new Request('http://x/api/detect?text=' + encodeURIComponent('make a logo')))).json();
+  expect(d).toEqual({ role: 'Design', agent: null });
+});

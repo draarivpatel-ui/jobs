@@ -24,6 +24,13 @@ const bot = createBot(
     jobsUrl: JOBS_URL,
     homepage: process.env.BOT_HOMEPAGE,
     idleTimeoutMs: SESSION_IDLE_TIMEOUT_MS,
+    inference: process.env.INFERENCE_KEY
+      ? {
+          url: process.env.INFERENCE_URL || 'https://inference.flisk.si',
+          key: process.env.INFERENCE_KEY,
+          model: process.env.INFERENCE_MODEL || 'flisk-wolf-chat',
+        }
+      : undefined,
   },
   fileStore(STATE_DIR),
 );

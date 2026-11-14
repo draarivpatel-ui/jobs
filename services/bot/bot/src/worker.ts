@@ -10,6 +10,10 @@ interface Env {
   BOT_NAME?: string;
   BOT_HOMEPAGE?: string;
   SESSION_IDLE_TIMEOUT_MS?: string;
+  /** Flisk Inference: URL and model are vars, the key is a secret (wrangler secret put INFERENCE_KEY). */
+  INFERENCE_URL?: string;
+  INFERENCE_KEY?: string;
+  INFERENCE_MODEL?: string;
 }
 
 const bots = new WeakMap<object, ReturnType<typeof createBot>>();
@@ -25,6 +29,7 @@ function botFor(env: Env) {
         homepage: env.BOT_HOMEPAGE,
         idleTimeoutMs: Number(env.SESSION_IDLE_TIMEOUT_MS) || 86_400_000,
         durability: 'd1',
+        inference: env.INFERENCE_KEY ? { url: env.INFERENCE_URL || 'https://inference.flisk.si', key: env.INFERENCE_KEY, model: env.INFERENCE_MODEL || 'flisk-wolf-chat' } : undefined,
         // Workers Free allows 50 subrequests per run; a job costs about 6, so three leaves room for resuming others.
         jobsPerPass: 3,
       },
