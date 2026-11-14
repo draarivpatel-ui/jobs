@@ -177,7 +177,7 @@ a.chip:hover{color:var(--text)}
   document.addEventListener('click', (e) => { const r = e.target.closest('[data-s]'); if (r) show(r.dataset.s, true); });
   $('#new').onclick = () => show('chat-' + Math.random().toString(36).slice(2, 8), true);
   refresh().then(() => { if (current) show(current, true); });
-  setInterval(async () => { if (document.hidden || sending) return; await refresh(); if (current && $('#msgs')) show(current, false).catch(() => {}); }, 3000);
+  setInterval(async () => { if (document.hidden || sending) return; await refresh(); if (current && $('#msgs')) show(current, false).catch(() => {}); }, 10000);
 })();
 </script></body></html>`;
 }
