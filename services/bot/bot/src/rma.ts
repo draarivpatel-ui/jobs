@@ -74,6 +74,26 @@ export function boardSessions(rows: Row[], board: string) {
   return { sessions: rows.map((r) => boardSession(r, board)), clashes: [], limits: { sessionTokens: 0, autoDowngrade: false }, order: [], build: 'bot' };
 }
 
+/** The board's guess of an agent type from what was typed (same rules as run-my-agents' guessRole), for the New session form. */
+export function guessRole(text: string): string {
+  const t = text.toLowerCase();
+  const rules: [string, RegExp][] = [
+    ['Video', /video|film|ffmpeg|\.mp4|gif|record|youtube|\bshorts?\b|\breels?\b|tiktok/],
+    ['SEO', /\bseo\b|sitemap|robots\.txt|meta tag|canonical|search console/],
+    ['Social', /tweet|post on|linkedin|reddit|product ?hunt|launch post|\bhn\b|social/],
+    ['Design', /design|\.css|style|layout|ui\b|avatar|figma|logo|icon/],
+    ['Calendar', /calendar|schedule|meeting|week plan/],
+    ['Calls', /\bcall\b|transcript|interview|notes\//],
+    ['Bug', /\bfix(es|ed|ing)?\b|\bbugs?\b|broken|crash|\bfail(s|ing|ed)?\b|regression|hotfix/],
+    ['Refactor', /refactor|\brename|\bextract|\bsplit\b|\bmove\b|tidy|clean ?up|dedupe/],
+    ['Feature', /\bfeat\b|feat\(|\badd\b|implement|\bsupport\b|\bnew\b/],
+    ['Planner', /plan|roadmap|prd|spec|todo|review/],
+    ['Chores', /bump|dependenc|lint|format|cleanup|rename|upgrade|ci\b|readme|score/],
+  ];
+  for (const [role, re] of rules) if (re.test(t)) return role;
+  return 'Code';
+}
+
 /** The answer to the board's GET api/options, which its new-session form reads. */
 export function boardOptions() {
   return {
@@ -109,7 +129,9 @@ export function withHeader(page: string, jobsUrl: string): string {
     '#flhead a{color:#9a9aab;text-decoration:none;letter-spacing:.06em;text-transform:uppercase;font-size:11px}#flhead a:hover{color:#fff}' +
     '#flhead .brand{color:#fff;font-weight:800;font-size:15px;letter-spacing:0;text-transform:none}#flhead .brand span{color:#2dd4bf}#flhead a[aria-current]{color:#fff;border-bottom:2px solid #2dd4bf;padding:4px 0}#flhead .sp{flex:1}#flhead a.post{background:#2dd4bf;color:#06060a;padding:7px 12px;font-weight:700}#flhead a.post:hover{background:#fff}' +
     // One line per link; on a phone the row scrolls inside itself instead of pushing the page sideways.
-    '#flhead a{white-space:nowrap;flex:none}@media(max-width:640px){#flhead{gap:14px;overflow-x:auto;scrollbar-width:none}#flhead::-webkit-scrollbar{display:none}}</style>';
+    '#flhead a{white-space:nowrap;flex:none}@media(max-width:640px){#flhead{gap:14px;overflow-x:auto;scrollbar-width:none}#flhead::-webkit-scrollbar{display:none}}'+
+    // The plain design paints every background white: give the header its own light colours there.
+    'body.plain #flhead{background:#fff!important;border-bottom:1px solid #d0d7de}body.plain #flhead .brand{color:#1f2328!important}body.plain #flhead a{color:#57606a}body.plain #flhead a[aria-current]{color:#0969da;border-bottom-color:#0969da}body.plain #flhead a.post{background:#1f883d;color:#fff}</style>';
   const bar =
     '<header id="flhead"><a class="brand" href="/">flisk <span>bot</span></a><a href="/" aria-current="page">Chat</a>' +
     `<a href="${j}/">Jobs</a><a href="${j}/agents">Agents</a><a href="${j}/how">For agents</a><span class="sp"></span><a class="post" href="${j}/post">Post a job</a>` +

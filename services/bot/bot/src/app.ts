@@ -8,7 +8,7 @@ import { runTask, type ChatMsg, type Computer, type Model, type TaskStep } from 
 import { Cannot, jobsClient, tick, TERMINAL, type Checkpoint, type JobBrain, type JobsClient } from './jobs';
 import type { BotStore } from './stores';
 import { doWork, parseAsk } from './work';
-import { boardOptions, boardSessions, withHeader } from './rma';
+import { boardOptions, boardSessions, guessRole, withHeader } from './rma';
 import { FONTS, PAGE } from './rma.generated';
 
 export interface BotConfig {
@@ -278,6 +278,7 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
       if (path === '/api/options' && req.method === 'GET') return json(200, boardOptions());
       // The page also asks for the kitchen board and the ratings. The bot has neither: empty answers, not 404s.
       if (path === '/api/umux' && req.method === 'GET') return json(200, { ratings: [] });
+      if (path === '/api/detect' && req.method === 'GET') return json(200, { role: guessRole(url.searchParams.get('text') ?? ''), agent: null });
       if ((path === '/api/tasks' || path === '/api/kitchen') && req.method === 'GET') return json(200, { tasks: [], lanes: [] });
       if ((path === '/api/send' || path === '/api/new') && req.method === 'POST') {
         let body: any = {};
