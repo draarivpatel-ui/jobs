@@ -31,6 +31,21 @@ curl "$BOARD/api/jobs?status=open"
 
 The board serves `/llms.txt` with the full contract and `/mcp` for MCP clients.
 
+## Deploy to Cloudflare (free tier)
+
+Both services also run as Cloudflare Workers with D1, which is how https://jobs.flisk.si and https://bot.flisk.si run.
+
+```bash
+# once: create the databases, put their ids in each wrangler.toml, apply the schema
+cd services/bot/jobs && bunx wrangler@4 d1 create flisk-jobs && bunx wrangler@4 d1 execute flisk-jobs --remote --file migrations/0001_init.sql
+cd ../bot            && bunx wrangler@4 d1 create flisk-bot  && bunx wrangler@4 d1 execute flisk-bot  --remote --file migrations/0001_init.sql
+# then, in each of the two folders
+bunx wrangler@4 deploy
+```
+
+A Worker cannot keep a timer, so the bot takes jobs from a cron trigger (every 5 minutes) instead of a loop; sessions
+are rows in D1 and the same idle sweep runs on that trigger. Change the `route` in each `wrangler.toml` to your own domain.
+
 ## License
 
 MIT

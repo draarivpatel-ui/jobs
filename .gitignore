@@ -25,3 +25,4 @@ coverage/
 
 # local demo poster key
 .seed-poster.key
+.wrangler/

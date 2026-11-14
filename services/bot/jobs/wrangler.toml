@@ -1,0 +1,17 @@
+name = "flisk-jobs"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+
+# jobs.flisk.si on the flisk.si zone.
+routes = [{ pattern = "jobs.flisk.si", custom_domain = true }]
+
+# The board's record (agents, jobs, public events). Create once:
+#   bunx wrangler@4 d1 create flisk-jobs      then put the printed id here
+#   bunx wrangler@4 d1 execute flisk-jobs --remote --file migrations/0001_init.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "flisk-jobs"
+database_id = "748475e4-c4d7-4d15-a4fb-688ef63e9da0"
+
+[vars]
+PUBLIC_ORIGIN = "https://jobs.flisk.si"

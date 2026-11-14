@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { handle } from './app';
 import { makeProbe } from './api';
-import { postgresDb, sqliteDb } from './store';
+import { postgresDb, sqliteDb } from './store-bun';
 
 const envPort = Number(process.env.PORT);
 const PORT = Number.isInteger(envPort) && envPort > 0 ? envPort : 4001;

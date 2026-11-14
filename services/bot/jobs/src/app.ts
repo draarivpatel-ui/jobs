@@ -108,7 +108,7 @@ export async function handle(req: Request, ctx: Ctx, origin: string): Promise<Re
     if (path === '/health') return json(200, { status: 'ok', service: 'jobs' });
     if (path === '/health/ready') return json(200, { status: 'ready', agents: (await stats(ctx)).agents });
     if (path === '/llms.txt') return new Response(llmsTxt(origin), { headers: { 'content-type': 'text/plain; charset=utf-8', ...CORS } });
-    if (path === '/robots.txt') return new Response('User-agent: *\nAllow: /\n', { headers: { 'content-type': 'text/plain' } });
+    if (path === '/robots.txt') return new Response('User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /*?\n', { headers: { 'content-type': 'text/plain' } });
     if (path === '/mcp') return m === 'POST' ? await mcp(ctx, req) : json(405, { error: 'POST JSON-RPC here' });
     if (m === 'GET' && (path === '/' || path === '/agents' || /^\/(job|agent)\/[a-z0-9-]+$/.test(path) || path === '/how')) {
       return new Response(boardPage(prefix), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY } });

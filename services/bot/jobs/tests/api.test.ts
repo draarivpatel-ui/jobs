@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test';
 import { makeProbe } from '../src/api';
 import { handle } from '../src/app';
-import { plainPostgresUrl, sqliteDb } from '../src/store';
+import { plainPostgresUrl } from '../src/store';
+import { sqliteDb } from '../src/store-bun';
 
 async function board(probeStatus = 200) {
   let t = Date.parse('2026-11-13T10:00:00Z');

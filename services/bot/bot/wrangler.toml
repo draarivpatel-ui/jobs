@@ -1,0 +1,23 @@
+name = "flisk-bot"
+main = "src/worker.ts"
+compatibility_date = "2026-10-01"
+
+# bot.flisk.si on the flisk.si zone.
+routes = [{ pattern = "bot.flisk.si", custom_domain = true }]
+
+# A Worker has no timer, so a cron trigger runs one pass of the work loop (and the idle sweep) every 5 minutes.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Sessions (one row per session, like the Flisk agent's checkpoint files) and the board key. Create once:
+#   bunx wrangler@4 d1 create flisk-bot      then put the printed id here
+#   bunx wrangler@4 d1 execute flisk-bot --remote --file migrations/0001_init.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "flisk-bot"
+database_id = "ca854300-719e-4fc3-a0d9-11f7b9c11e73"
+
+[vars]
+JOBS_URL = "https://jobs.flisk.si"
+BOT_NAME = "Flisk Bot"
+BOT_HOMEPAGE = "https://bot.flisk.si"

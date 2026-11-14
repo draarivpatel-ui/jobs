@@ -21,10 +21,14 @@ export interface Checkpoint {
   job?: { id: string; title: string; kind: Kind; input: Record<string, string>; step: Step; tries: number; result?: WorkResult; boardUrl: string };
 }
 
+type Maybe<T> = T | Promise<T>;
+
+// Checkpoints live in a folder (Flisk stack, plain processes) or in a D1 table (Cloudflare Worker): both answer
+// either way, so every call here awaits.
 export interface Store {
-  load(id: string): Checkpoint;
-  save(c: Checkpoint): void;
-  list(): { sessionId: string }[];
+  load(id: string): Maybe<Checkpoint>;
+  save(c: Checkpoint): Maybe<void>;
+  list(): Maybe<{ sessionId: string }[]>;
 }
 
 export interface JobsClient {
@@ -33,8 +37,8 @@ export interface JobsClient {
   call: (method: string, path: string, body?: unknown) => Promise<any>;
 }
 
-export function jobsClient(base: string, name: string, readKey: () => string | null, writeKey: (k: string) => void, f: typeof fetch = fetch): JobsClient {
-  let key = readKey();
+export function jobsClient(base: string, name: string, readKey: () => Maybe<string | null>, writeKey: (k: string) => Maybe<void>, f: typeof fetch = fetch, homepage?: string): JobsClient {
+  let key: string | null | undefined;
   const raw = async (method: string, path: string, body?: unknown, auth?: string) => {
     const res = await f(base + path, {
       method,
@@ -46,15 +50,18 @@ export function jobsClient(base: string, name: string, readKey: () => string | n
     return { status: res.status, data };
   };
   const register = async () => {
-    const r = await raw('POST', '/api/agents', { name, homepage: process.env.BOT_HOMEPAGE || undefined, about: 'Flisk Bot. Scores GitHub READMEs and checks pages for AI search, with Flisk tools. No model, same input gives the same answer.' });
+    const r = await raw('POST', '/api/agents', { name, homepage: homepage || undefined, about: 'Flisk Bot. Scores GitHub READMEs and checks pages for AI search, with Flisk tools. No model, same input gives the same answer.' });
     if (r.status !== 201) throw new Error(`could not register on the board: ${r.data?.error ?? r.status}`);
     key = r.data.key as string;
-    writeKey(key);
+    await writeKey(key);
     return key;
   };
   const client: JobsClient = {
     base,
-    key: async () => key ?? (await register()),
+    key: async () => {
+      if (key === undefined) key = await readKey();
+      return key ?? (await register());
+    },
     call: async (method, path, body) => {
       let r = await raw(method, path, body, await client.key());
       if (r.status === 401) r = await raw(method, path, body, await register()); // the board forgot us: join again
@@ -78,16 +85,16 @@ export async function advance(c: Checkpoint, jobs: JobsClient, store: Store, wor
       const d = await jobs.call('POST', `/api/jobs/${j.id}/claim`);
       j.step = 'claimed';
       say(c, 'claimed', `Claimed "${j.title}" from ${d.job.poster}${d.job.priceUsd !== null ? ` (stated price $${d.job.priceUsd}, payment not live)` : ''}. I have 24 hours.`);
-      store.save(c);
+      await store.save(c);
       return true;
     }
     if (j.step === 'claimed') {
       say(c, 'working', `Running ${j.kind === 'readme-score' ? 'README Score' : 'Citable'} on ${j.input.repo ?? j.input.url}…`);
-      store.save(c);
+      await store.save(c);
       j.result = await work(j.kind, j.input);
       j.step = 'worked';
       say(c, 'worked', [j.result.summary, ...j.result.fixes.map((x) => `• ${x}`), `Result page: ${j.result.url}`].join('\n'));
-      store.save(c);
+      await store.save(c);
       return true;
     }
     if (j.step === 'worked' && j.result) {
@@ -96,7 +103,7 @@ export async function advance(c: Checkpoint, jobs: JobsClient, store: Store, wor
       j.step = d.job.status === 'accepted' ? 'accepted' : 'submitted';
       say(c, 'submitted', `Submitted the result link to the board.${checked(d)}`);
       if (j.step === 'accepted') say(c, 'accepted', 'Accepted. The job is done and on my public record.');
-      store.save(c);
+      await store.save(c);
       return true;
     }
     if (j.step === 'submitted') {
@@ -109,7 +116,7 @@ export async function advance(c: Checkpoint, jobs: JobsClient, store: Store, wor
         const why = [...d.events].reverse().find((e: any) => e.kind === 'rejected')?.note ?? 'no reason given';
         say(c, 'rejected', `The poster rejected the work: ${why}`);
       } else return false;
-      store.save(c);
+      await store.save(c);
       return true;
     }
   } catch (e) {
@@ -123,10 +130,10 @@ export async function advance(c: Checkpoint, jobs: JobsClient, store: Store, wor
       await jobs.call('POST', `/api/jobs/${j.id}/release`).catch(() => {});
     } else {
       say(c, 'retry', `Try ${j.tries} of 3 failed: ${err.message}. I will try again on the next pass.`);
-      store.save(c);
+      await store.save(c);
       return false; // wait for the next pass instead of retrying at once
     }
-    store.save(c);
+    await store.save(c);
     return true;
   }
   return false;
@@ -145,10 +152,10 @@ async function myId(jobs: JobsClient): Promise<string> {
 
 /** One pass of the loop: resume unfinished sessions first, then claim at most one new job. */
 export async function tick(jobs: JobsClient, store: Store, queue: (id: string, op: () => Promise<void>) => Promise<void>, work = doWork) {
-  for (const { sessionId } of store.list()) {
+  for (const { sessionId } of await store.list()) {
     if (!sessionId.startsWith('job-')) continue;
     await queue(sessionId, async () => {
-      const c = store.load(sessionId);
+      const c = await store.load(sessionId);
       while (await advance(c, jobs, store, work)) if (c.job?.step === 'submitted') break; // wait for the poster
     });
   }
@@ -156,18 +163,18 @@ export async function tick(jobs: JobsClient, store: Store, queue: (id: string, o
   const mine = await myId(jobs);
   // A job the bot already touched is never taken again: the same input gives the same answer, so a rejected result
   // would only be rejected twice.
-  const seen = new Set(store.list().map((s) => s.sessionId));
+  const seen = new Set((await store.list()).map((s) => s.sessionId));
   const next = open.jobs.find((x: any) => x.poster !== mine && !seen.has(`job-${x.id}`));
   if (!next) return;
   const sessionId = `job-${next.id}`;
   await queue(sessionId, async () => {
-    const c = store.load(sessionId);
+    const c = await store.load(sessionId);
     if (c.job) return;
     // Save the intent before claiming, so a crash right after the claim resumes this job instead of forgetting it.
     c.title = next.title;
     c.job = { id: next.id, title: next.title, kind: next.kind, input: next.input, step: 'claiming', tries: 0, boardUrl: `${jobs.base}/job/${next.id}` };
     say(c, 'found', `Found an open job on the board: "${next.title}".`);
-    store.save(c);
+    await store.save(c);
     while (await advance(c, jobs, store, work)) if (c.job?.step === 'submitted') break;
   });
 }

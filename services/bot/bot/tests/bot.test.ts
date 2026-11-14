@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { handle } from '../../jobs/src/app';
-import { sqliteDb } from '../../jobs/src/store';
+import { sqliteDb } from '../../jobs/src/store-bun';
 import { advance, jobsClient, tick, type Checkpoint } from '../src/jobs';
 import { parseAsk, type Kind } from '../src/work';
 
@@ -147,4 +147,34 @@ test('the server sweeps idle chats but keeps job sessions, and DELETE /session r
   } finally {
     p.kill();
   }
+});
+
+// The D1 store (what runs on Cloudflare), against SQLite standing in for D1.
+test('the D1 store saves, lists, sweeps chats only, and keeps the board key', async () => {
+  const { Database } = await import('bun:sqlite');
+  const { d1Store, D1_SCHEMA } = await import('../src/stores');
+  const sql = new Database(':memory:');
+  for (const s of D1_SCHEMA) sql.exec(s);
+  const d1 = { prepare: (q: string) => ({ bind: (...a: unknown[]) => ({
+    first: async () => (sql.query(q).get(...(a as never[])) as any) ?? null,
+    all: async () => ({ results: sql.query(q).all(...(a as never[])) as any[] }),
+    run: async () => ({ meta: { changes: sql.query(q).run(...(a as never[])).changes } }),
+  }) }) };
+  const s = d1Store(d1);
+  expect(await s.ready()).toBe(true);
+  expect((await s.load('chat-a')).messages).toEqual([]);
+  await s.save({ sessionId: 'chat-a', messages: [{ role: 'user', content: 'hi', at: 'x' }] });
+  await s.save({ sessionId: 'job-1', messages: [] });
+  expect((await s.load('chat-a')).messages.length).toBe(1);
+  const list = await s.list();
+  expect(list.map((r) => r.sessionId).sort()).toEqual(['chat-a', 'job-1']);
+  expect(list[0].checkpointBytes).toBeGreaterThan(0);
+  expect((await s.recent(10))[0].c.sessionId).toBeDefined();
+  expect(await s.sweep(Date.now() + 1000, (id) => id === 'chat-a')).toBe(0); // busy chat stays
+  expect(await s.sweep(Date.now() + 1000, () => false)).toBe(1); // idle chat goes, the job session stays
+  expect((await s.list()).map((r) => r.sessionId)).toEqual(['job-1']);
+  expect(await s.readKey()).toBeNull();
+  await s.writeKey('fj_abc');
+  await s.writeKey('fj_def');
+  expect(await s.readKey()).toBe('fj_def');
 });
