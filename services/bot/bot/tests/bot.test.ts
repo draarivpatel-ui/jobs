@@ -190,3 +190,10 @@ test('the D1 store saves, lists, sweeps chats only, and keeps the board key', as
   await s.writeKey('fj_def');
   expect(await s.readKey()).toBe('fj_def');
 });
+
+import { guessRole } from '../src/rma';
+
+test('/api/detect gives the agent type for what was typed', async () => {
+  expect(guessRole('make a logo for a bakery')).toBe('Design');
+  expect(guessRole('fix the crash on login')).toBe('Bug');
+});
