@@ -187,12 +187,12 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
       }
       if (path === '/robots.txt') return new Response('User-agent: *\nDisallow: /api/\nDisallow: /session\nDisallow: /*?\n', { headers: { 'content-type': 'text/plain' } });
       if (path === '/' && req.method === 'GET') {
-        return new Response(withHeader(PAGE, cfg.boardUrl || cfg.jobsUrl).replace('</head>', '<script src="https://flisk.si/assets/bar.js" defer></script></head>'), {
+        return new Response(withHeader(PAGE, cfg.boardUrl || cfg.jobsUrl), {
           headers: {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
             'x-content-type-options': 'nosniff',
-            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://flisk.si https://flisk.sh; img-src 'self' data: https://flisk.si; font-src 'self'; connect-src 'self' https://flisk.sh; base-uri 'none'; frame-ancestors 'none'",
+            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline' https://flisk.si; img-src 'self' data: https://flisk.si; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
           },
         });
       }
