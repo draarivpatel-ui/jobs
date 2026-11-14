@@ -22,6 +22,9 @@ export interface BotStore {
   sweep(before: number, busy: (id: string) => boolean): Maybe<number>;
   readKey(): Maybe<string | null>;
   writeKey(k: string): Maybe<void>;
+  /** Today's use of the model and the computers (one small JSON text), so the free allowance has a daily cap. */
+  readUsage(): Maybe<string | null>;
+  writeUsage(v: string): Maybe<void>;
 }
 
 // The subset of Cloudflare's D1 binding that the bot uses.
@@ -81,6 +84,12 @@ export function d1Store(db: D1Like): BotStore {
     },
     async writeKey(k) {
       await q("INSERT INTO state (k, v) VALUES ('board_key', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", k).run();
+    },
+    async readUsage() {
+      return (await q("SELECT v FROM state WHERE k = 'usage'").first<{ v: string }>())?.v ?? null;
+    },
+    async writeUsage(v) {
+      await q("INSERT INTO state (k, v) VALUES ('usage', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", v).run();
     },
   };
 }

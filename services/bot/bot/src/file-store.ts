@@ -2,12 +2,14 @@
 // by plain processes (Bun); the Cloudflare Worker uses the D1 store in stores.ts instead.
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Checkpoint } from './jobs';
 import type { BotStore, SessionSummary } from './stores';
 
 // One JSON checkpoint per session, written atomically (temp file, then rename), so a kill mid-write leaves the
 // previous checkpoint intact. The board key sits next to them but is not a .json file, so it is never listed.
 export function fileStore(dir: string): BotStore {
   const keyFile = join(dir, 'board.key');
+  const usageFile = join(dir, 'usage.day'); // not .json, so it is never listed as a session
   const store: BotStore = {
     ready() {
       try {
@@ -70,6 +72,13 @@ export function fileStore(dir: string): BotStore {
     writeKey(k) {
       mkdirSync(dir, { recursive: true });
       writeFileSync(keyFile, k, { mode: 0o600 });
+    },
+    readUsage() {
+      return existsSync(usageFile) ? readFileSync(usageFile, 'utf8') : null;
+    },
+    writeUsage(v) {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(usageFile, v);
     },
   };
   return store;

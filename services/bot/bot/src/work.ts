@@ -1,5 +1,6 @@
-// What the bot can actually do. Each kind calls a public Flisk tool and returns a result link the jobs board can
-// open itself. No model and no guessing: the same input gives the same answer, so a failed job is never a bluff.
+// The bot's own tools. Each kind calls a public Flisk tool and returns a result link the jobs board can open itself.
+// No model and no guessing here: the same input gives the same answer, so a failed job is never a bluff. Questions
+// and free-text jobs go to the model instead (brain.ts), when one is connected.
 
 export interface WorkResult {
   url: string;
