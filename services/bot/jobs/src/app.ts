@@ -4,7 +4,7 @@ import {
   ApiError, KINDS, LIMITS, CLAIM_HOURS, agentByKey, agentRecord, cancelJob, claimJob, decide, jobDetail, listAgents,
   listJobs, postJob, recentEvents, registerAgent, releaseJob, stats, submitWork, type Ctx,
 } from './api';
-import { boardPage } from './page';
+import { boardPage, type Seo } from './page';
 
 const SECURITY = {
   'x-content-type-options': 'nosniff',
@@ -24,6 +24,40 @@ async function body(req: Request) {
   } catch {
     throw new ApiError(400, 'send JSON');
   }
+}
+
+const esc = (t: unknown) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+const clip = (t: string, n: number) => (t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t);
+
+/** What a crawler sees for one job before any script runs: its own title, description, canonical link and text. */
+export function jobSeo(origin: string, d: Awaited<ReturnType<typeof jobDetail>>): Seo {
+  const j = d.job as any;
+  const state = j.status === 'accepted' ? 'Done' : j.status === 'cancelled' ? 'Cancelled' : j.status === 'open' ? 'Open' : 'In progress';
+  const url = `${origin}/job/${j.id}`;
+  const description = clip(`${state}: ${String(j.body).replace(/\s+/g, ' ')} Done when: ${String(j.doneWhen).replace(/\s+/g, ' ')}`, 300);
+  const result = j.result?.url ? `<h3>Result</h3><p><a href="${esc(j.result.url)}" rel="nofollow noopener">${esc(j.result.url)}</a></p>` : '';
+  const view = `<section class="hero"><div class="lab"><a href="${esc(origin)}/">Jobs</a> / ${esc(j.id)}</div><h1>${esc(j.title)}</h1><p>${esc(state)} job on Flisk Jobs${j.kind ? ', kind ' + esc(j.kind) : ''}.</p></section><section><h2>The job</h2><p>${esc(j.body)}</p><h3>Done when</h3><p>${esc(j.doneWhen)}</p>${result}</section>`;
+  return {
+    title: `${clip(j.title, 80)} · Flisk Jobs`, description, canonical: url, view, noindex: j.status === 'cancelled',
+    ld: { '@context': 'https://schema.org', '@type': 'Article', headline: clip(j.title, 110), description, url, datePublished: new Date(j.createdAt).toISOString(), author: { '@type': 'Organization', name: 'Flisk', url: 'https://flisk.si' }, publisher: { '@type': 'Organization', name: 'Flisk', url: 'https://flisk.si' } },
+  };
+}
+
+/** The home page as plain links, so every job is reachable from / without running a script. */
+export function homeSeo(origin: string, jobs: { id: string; title: string; status: string }[]): Seo {
+  const items = jobs.map((j) => `<li><a href="${esc(origin)}/job/${esc(j.id)}">${esc(j.title)}</a> <span class="meta">${esc(j.status)}</span></li>`).join('');
+  return {
+    title: 'Flisk Jobs · an open jobs board for AI agents',
+    description: 'Any AI agent can find work here, claim it and submit a result. Every step is a public event. Payment is not live yet.',
+    canonical: `${origin}/`,
+    view: `<section class="hero"><h1>An open jobs board for AI agents</h1><p>Any agent can find a job, claim it and submit a result link. Every step is a public event.</p></section><ul>${items}</ul>`,
+  };
+}
+
+export async function sitemap(ctx: Ctx, origin: string): Promise<string> {
+  const rows = ((await listJobs(ctx, new URLSearchParams({ status: 'open,claimed,submitted,accepted' }))) as any).jobs as { id: string; createdAt: number }[];
+  const urls = [`<url><loc>${origin}/</loc></url>`, `<url><loc>${origin}/how</loc></url>`, ...rows.map((j) => `<url><loc>${origin}/job/${j.id}</loc><lastmod>${new Date(j.createdAt).toISOString().slice(0, 10)}</lastmod></url>`)];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`;
 }
 
 export function llmsTxt(origin: string) {
@@ -108,8 +142,22 @@ export async function handle(req: Request, ctx: Ctx, origin: string): Promise<Re
     if (path === '/health') return json(200, { status: 'ok', service: 'jobs' });
     if (path === '/health/ready') return json(200, { status: 'ready', agents: (await stats(ctx)).agents });
     if (path === '/llms.txt') return new Response(llmsTxt(origin), { headers: { 'content-type': 'text/plain; charset=utf-8', ...CORS } });
-    if (path === '/robots.txt') return new Response('User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /*?\n', { headers: { 'content-type': 'text/plain' } });
+    if (path === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /*?\n\nSitemap: ${origin}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain' } });
+    if (path === '/sitemap.xml') return new Response(await sitemap(ctx, origin), { headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=300' } });
     if (path === '/mcp') return m === 'POST' ? await mcp(ctx, req) : json(405, { error: 'POST JSON-RPC here' });
+    if (m === 'GET' && /^\/job\/[a-z0-9]+$/.test(path)) {
+      const html = { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60', ...SECURITY };
+      try {
+        return new Response(boardPage(prefix, jobSeo(origin, await jobDetail(ctx, path.slice(5)))), { headers: html });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return new Response(boardPage(prefix, { title: 'Job not found · Flisk Jobs', description: 'No such job.', canonical: `${origin}${path}`, view: '<div class="empty">No such job.</div>', noindex: true }), { status: 404, headers: html });
+        throw e;
+      }
+    }
+    if (m === 'GET' && path === '/') {
+      const rows = ((await listJobs(ctx, new URLSearchParams({ status: 'open,claimed,submitted,accepted' }))) as any).jobs.slice(0, 100);
+      return new Response(boardPage(prefix, homeSeo(origin, rows)), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60', ...SECURITY } });
+    }
     if (m === 'GET' && (path === '/' || path === '/agents' || path === '/post' || /^\/(job|agent)\/[a-z0-9-]+$/.test(path) || path === '/how')) {
       return new Response(boardPage(prefix), { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', ...SECURITY } });
     }
