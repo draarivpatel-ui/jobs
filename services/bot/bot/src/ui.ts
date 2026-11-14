@@ -11,8 +11,8 @@ const FACES = {
   bot: avatar(face('Feature'), 40),
 };
 
-export function overview(rows: { sessionId: string; lastActivity: string; c: Checkpoint; active: boolean }[], meta: { name: string; board: string; loop: unknown }) {
-  const sessions = rows.map(({ sessionId, lastActivity, c, active }) => {
+export function overview(rows: { sessionId: string; lastActivity: string; checkpointBytes: number; status: 'active' | 'idle'; c: Checkpoint; active: boolean }[], meta: { name: string; board: string; loop: unknown }) {
+  const sessions = rows.map(({ sessionId, lastActivity, checkpointBytes, status, c, active }) => {
     const j = c.job;
     const last = c.messages.at(-1);
     return {
@@ -23,6 +23,8 @@ export function overview(rows: { sessionId: string; lastActivity: string; c: Che
       done: j ? TERMINAL.includes(j.step) : false,
       active,
       at: lastActivity,
+      status,
+      bytes: checkpointBytes,
       last: last ? last.content.split('\n')[0].slice(0, 90) : '',
       board: j ? `${meta.board}/job/${j.id}` : null,
     };
@@ -107,6 +109,7 @@ a.chip:hover{color:var(--text)}
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const linkify = (s) => esc(s).replace(/https?:\\/\\/[^\\s<]+/g, (u) => '<a href="' + u + '" target="_blank" rel="noopener nofollow">' + u + '</a>');
   const ago = (iso) => { const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); return s < 60 ? Math.round(s) + 's' : s < 3600 ? Math.round(s / 60) + ' min' : s < 86400 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' d'; };
+  const bytes = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
   const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   let data = null, current = new URLSearchParams(location.hash.slice(1)).get('s'), sending = false, drawnFor = null, drawnLen = -1;
 
@@ -135,7 +138,7 @@ a.chip:hover{color:var(--text)}
     const j = c.job;
     const keep = drawnFor === id ? $('#msg')?.value : '';
     $('#main').innerHTML = '<div class="head"><button class="back" id="back">‹</button><span style="width:40px;height:40px">' + (data.faces[j ? j.kind : 'chat']) + '</span><div style="min-width:0"><h1>' + (j ? esc(j.kind) + ' <span>· ' + esc(c.title || j.title) + '</span>' : esc(c.title || 'New session')) + '</h1>' +
-      '<div class="chips"><span class="chip"># ' + esc(id) + '</span>' + (j ? '<span class="chip">step: ' + esc(j.step) + '</span><a class="chip" href="' + esc(s?.board || '#') + '" target="_blank" rel="noopener">public record ↗</a>' + (j.result ? '<a class="chip" href="' + esc(j.result.url) + '" target="_blank" rel="noopener nofollow">result ↗</a>' : '') : '<span class="chip">chat</span>') + '<span class="chip">' + c.messages.length + ' saved messages</span></div></div></div>' +
+      '<div class="chips"><span class="chip"># ' + esc(id) + '</span>' + (j ? '<span class="chip">step: ' + esc(j.step) + '</span><a class="chip" href="' + esc(s?.board || '#') + '" target="_blank" rel="noopener">public record ↗</a>' + (j.result ? '<a class="chip" href="' + esc(j.result.url) + '" target="_blank" rel="noopener nofollow">result ↗</a>' : '') : '<span class="chip">chat</span>') + '<span class="chip">' + c.messages.length + ' saved messages</span><span class="chip">' + (s ? esc(s.status) + ' · ' + bytes(s.bytes) + ' · last activity ' + ago(s.at) + ' ago' : esc(c.status || 'idle')) + '</span></div></div></div>' +
       '<div class="msgs" id="msgs">' + (c.messages.map((m) => m.event
         ? '<div class="ev"><span class="k ' + esc(m.event) + '">' + esc(m.event) + '</span><div class="x">' + linkify(m.content) + '<time>' + clock(m.at) + '</time></div></div>'
         : '<div class="b ' + (m.role === 'user' ? 'user' : 'agent') + '"><span class="who">' + (m.role === 'user' ? 'YOU' : 'BOT') + ' ' + clock(m.at) + '</span>' + linkify(m.content) + '</div>').join('') ||

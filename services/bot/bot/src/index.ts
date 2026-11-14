@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { jobsClient, tick, TERMINAL, type Checkpoint } from './jobs';
 import { doWork, parseAsk } from './work';
@@ -22,6 +22,10 @@ const JOBS_URL = (process.env.JOBS_URL || '').replace(/\/+$/, '');
 const BOARD_URL = (process.env.JOBS_PUBLIC_URL || JOBS_URL).replace(/\/+$/, '');
 const POLL_MS = Math.max(5, Number(process.env.BOT_POLL_SECONDS) || 15) * 1000;
 const BOT_NAME = process.env.BOT_NAME || 'Flisk Bot';
+// Same settings as the Flisk agent scaffold: a chat checkpoint is kept until its session has been quiet this long,
+// swept on this interval. A malformed override falls back to the default (a NaN would switch the sweep off silently).
+const SESSION_IDLE_TIMEOUT_MS = Number(process.env.SESSION_IDLE_TIMEOUT_MS) || 86_400_000;
+const SESSION_CLEANUP_INTERVAL_MS = Number(process.env.SESSION_CLEANUP_INTERVAL_MS) || 3_600_000;
 
 interface SessionSummary {
   sessionId: string;
@@ -56,6 +60,13 @@ const store = {
           return [];
         }
       });
+  },
+  delete(sessionId: string): void {
+    try {
+      unlinkSync(join(STATE_DIR, sessionId + '.json'));
+    } catch (err) {
+      if ((err as { code?: string }).code !== 'ENOENT') console.error('[agent] delete checkpoint failed:', err);
+    }
   },
   save(checkpoint: Checkpoint): void {
     mkdirSync(STATE_DIR, { recursive: true });
@@ -103,6 +114,26 @@ let inFlight = 0;
 const activeTurns = new Map<string, number>();
 const sessionOperationQueues = new Map<string, Promise<void>>();
 const SESSION_LIST_LIMIT = 500;
+let sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+// Only chat sessions are swept. A job-<id> session is the bot's own record of that job (the loop reads it to resume
+// an unfinished job and to never take a finished one twice), so it stays. A session with a turn in flight is never swept.
+function sweepIdleSessions(now = Date.now()): number {
+  if (draining) return 0;
+  let swept = 0;
+  try {
+    for (const s of store.list()) {
+      if (s.sessionId.startsWith('job-') || activeTurns.has(s.sessionId)) continue;
+      if (new Date(s.lastActivity).getTime() >= now - SESSION_IDLE_TIMEOUT_MS) continue;
+      store.delete(s.sessionId);
+      swept++;
+    }
+    if (swept > 0) console.log('[agent] swept ' + swept + ' idle session(s)');
+  } catch (err) {
+    console.error('[agent] idle sweep failed:', err);
+  }
+  return swept;
+}
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.statusCode = status;
@@ -192,6 +223,14 @@ const server = createServer(async (req, res) => {
       return sendJson(res, 200, { ...checkpoint, turns: checkpoint.messages.filter((m) => m.role === 'user').length, status: activeTurns.has(sessionId) ? 'active' : 'idle' });
     }
 
+    if (url.pathname === '/session' && req.method === 'DELETE') {
+      const sessionId = String(req.headers['x-session-id'] ?? url.searchParams.get('id') ?? '');
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return sendJson(res, 400, { error: 'x-session-id header is required' });
+      if (activeTurns.has(sessionId)) return sendJson(res, 409, { error: 'turn_in_flight' });
+      store.delete(sessionId);
+      return sendJson(res, 200, { deleted: sessionId });
+    }
+
     if (url.pathname === '/sessions' && req.method === 'GET') {
       const all = store.list().sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
       const sessions = all.slice(0, SESSION_LIST_LIMIT).map((s) => ({ ...s, status: activeTurns.has(s.sessionId) ? 'active' : 'idle' }));
@@ -201,7 +240,7 @@ const server = createServer(async (req, res) => {
     // The web view (bot.flisk.si): the same sessions, drawn like the Run My Agents app.
     if (url.pathname === '/api/overview' && req.method === 'GET') {
       const list = store.list().sort((a, b) => b.lastActivity.localeCompare(a.lastActivity)).slice(0, 200);
-      return sendJson(res, 200, overview(list.map((s) => ({ ...s, c: store.load(s.sessionId), active: activeTurns.has(s.sessionId) })), { name: BOT_NAME, board: BOARD_URL, loop: loopState }));
+      return sendJson(res, 200, overview(list.map((s) => ({ ...s, status: activeTurns.has(s.sessionId) ? 'active' as const : 'idle' as const, c: store.load(s.sessionId), active: activeTurns.has(s.sessionId) })), { name: BOT_NAME, board: BOARD_URL, loop: loopState }));
     }
     if (url.pathname === '/' && req.method === 'GET') {
       res.statusCode = 200;
@@ -237,11 +276,14 @@ async function loop() {
 server.listen(PORT, '0.0.0.0', () => {
   console.log('\n🤖 bot agent on http://localhost:' + PORT + ' (durability: ' + DURABILITY + ')' + (jobs ? ', taking jobs from ' + JOBS_URL : ', no JOBS_URL: chat only'));
   setTimeout(loop, 1000);
+  sweepTimer = setInterval(() => sweepIdleSessions(), SESSION_CLEANUP_INTERVAL_MS);
+  sweepTimer.unref();
 });
 
 function shutdown(signal: string) {
   if (draining) return;
   draining = true;
+  if (sweepTimer) clearInterval(sweepTimer);
   console.log('[agent] ' + signal + ' received, draining ' + inFlight + ' in-flight request(s)');
   server.close();
   const deadline = Date.now() + DRAIN_TIMEOUT_MS;

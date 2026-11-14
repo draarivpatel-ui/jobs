@@ -114,3 +114,37 @@ test('chat input is read as a repo or a page', () => {
   expect(parseAsk('can AI find https://pages.flisk.si/docs?')).toEqual({ kind: 'ai-findable', input: { url: 'https://pages.flisk.si/docs?' } });
   expect(parseAsk('hello')).toBeNull();
 });
+
+// The Flisk agent contract on the real server: idle sweep, DELETE /session, the fields of GET /sessions.
+test('the server sweeps idle chats but keeps job sessions, and DELETE /session removes one', async () => {
+  const { mkdtempSync, writeFileSync, utimesSync, existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'bot-sweep-'));
+  const put = (id: string, ageMs: number) => {
+    const f = join(dir, id + '.json');
+    writeFileSync(f, JSON.stringify({ sessionId: id, messages: [] }));
+    const t = new Date(Date.now() - ageMs);
+    utimesSync(f, t, t);
+  };
+  put('chat-old', 3_600_000);
+  put('chat-new', 0);
+  put('job-old', 3_600_000);
+  const port = 38000 + Math.floor(Math.random() * 1000);
+  const p = Bun.spawn(['bun', 'src/index.ts'], { cwd: join(import.meta.dir, '..'), env: { ...process.env, PORT: String(port), AGENT_STATE_DIR: dir, SESSION_IDLE_TIMEOUT_MS: '60000', SESSION_CLEANUP_INTERVAL_MS: '200', JOBS_URL: '' }, stdout: 'ignore', stderr: 'ignore' });
+  try {
+    const base = `http://localhost:${port}`;
+    for (let i = 0; i < 50; i++) { try { if ((await fetch(base + '/health')).ok) break; } catch {} await Bun.sleep(100); }
+    await Bun.sleep(700);
+    const list = await (await fetch(base + '/sessions')).json();
+    expect(list.sessions.map((s: any) => s.sessionId).sort()).toEqual(['chat-new', 'job-old']);
+    expect(list.total).toBe(2);
+    expect(list.sessions[0].status).toBe('idle');
+    expect(typeof list.sessions[0].checkpointBytes).toBe('number');
+    expect((await fetch(base + '/session', { method: 'DELETE' })).status).toBe(400);
+    expect(await (await fetch(base + '/session', { method: 'DELETE', headers: { 'x-session-id': 'chat-new' } })).json()).toEqual({ deleted: 'chat-new' });
+    expect(existsSync(join(dir, 'chat-new.json'))).toBe(false);
+  } finally {
+    p.kill();
+  }
+});
