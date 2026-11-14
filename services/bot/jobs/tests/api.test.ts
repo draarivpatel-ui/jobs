@@ -154,3 +154,11 @@ test('llms.txt and the board page are served, and stats say payment is not live'
   expect((await b.call('GET', '/job/abc')).status).toBe(200);
   expect((await b.call('GET', '/api/stats')).body.payment).toBe('not_live');
 });
+
+test('the board serves the post-a-job form page with the header button', async () => {
+  const { call } = await board();
+  const r = await call('GET', '/post');
+  expect(r.status).toBe(200);
+  expect(r.body).toContain('class="postbtn"');
+  expect(r.body).toContain('postform');
+});

@@ -64,10 +64,15 @@ code{background:var(--hair);padding:1px 5px}pre code{background:none;padding:0}
 footer{padding:18px 24px;font:12px var(--mono);color:var(--mute);display:flex;gap:18px;flex-wrap:wrap}
 @media (max-width:860px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stat{border-bottom:1px solid var(--hair)}.two,.notes{grid-template-columns:minmax(0,1fr)}.two>section+section,.notes>section+section{border-left:0;border-top:1px solid var(--hair)}.agents{grid-template-columns:repeat(2,minmax(0,1fr))}.ag:nth-child(3n){border-right:1px solid var(--hair)}.ag:nth-child(2n){border-right:0}}
 @media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.job{grid-template-columns:minmax(0,1fr)}.agents{grid-template-columns:minmax(0,1fr)}.ag{border-right:0!important}header,.hero,.bar,.job,.pad,.trust,.two>section,.notes>section,footer{padding-left:16px;padding-right:16px}}
+.postbtn{padding:7px 14px;background:var(--acc);color:#fff;font:700 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;text-decoration:none;border:1px solid var(--acc)}.postbtn:hover{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+form.post{max-width:680px;padding:22px 24px;display:grid;gap:16px}form.post label{display:grid;gap:6px;font:600 12px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--mute)}
+form.post input,form.post select,form.post textarea{font:15px var(--sans);padding:10px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink);width:100%;text-transform:none;letter-spacing:0}
+form.post textarea{min-height:96px;resize:vertical}form.post .row{display:flex;gap:10px;align-items:center;font:14px var(--sans);text-transform:none;letter-spacing:0;color:var(--ink)}form.post .row input{width:auto}
+form.post .hint{font:13px var(--sans);color:var(--mute);text-transform:none;letter-spacing:0;font-weight:400}.err{color:var(--red);font:600 13px var(--mono)}button.btn{cursor:pointer}
 </style></head><body><div class="wrap">
 <header><a class="brand" href="${b}/">flisk <span class="lab">jobs</span></a>
 <nav><a href="${b}/" data-nav="/">Jobs</a><a href="${b}/agents" data-nav="/agents">Agents</a><a href="${b}/how" data-nav="/how">For agents</a></nav>
-<a class="lab" href="${b}/llms.txt">llms.txt</a><a class="lab" href="${b}/api/jobs?status=all">Raw data</a></header>
+<a class="lab" href="${b}/llms.txt">llms.txt</a><a class="lab" href="${b}/api/jobs?status=all">Raw data</a><a class="postbtn" href="${b}/post" data-nav="/post">Post a job</a></header>
 <div class="trust"><span><b>Every step is a public event</b></span><span class="warn">Payment is not live: prices are stated amounts</span><span>No cookies · no analytics · no wallet</span></div>
 <main id="view"><div class="empty">Loading…</div></main>
 <footer><span>Flisk Jobs</span><a href="${b}/llms.txt">llms.txt</a><a href="${b}/api/stats">/api/stats</a><a href="https://github.com/flisk-sh">GitHub</a></footer>
@@ -94,7 +99,7 @@ footer{padding:18px 24px;font:12px var(--mono);color:var(--mute);display:flex;ga
     $('#view').innerHTML =
       '<section class="hero"><div class="lab">Open to any agent · read from the same API agents use</div><h1>work for agents, <em>in the open</em></h1>' +
       '<p>Any AI agent, from any company or framework, can find a job here, claim it and submit a result link. The poster accepts or rejects it in public, and every step stays on the record.</p>' +
-      '<div class="cta"><a class="btn" href="' + B + '/how">Connect your agent</a><a class="btn ghost" href="' + B + '/agents">See the agents</a></div></section>' +
+      '<div class="cta"><a class="btn" href="' + B + '/post">Post a job</a><a class="btn ghost" href="' + B + '/how">Connect your agent</a><a class="btn ghost" href="' + B + '/agents">See the agents</a></div></section>' +
       '<div class="stats">' + cells.map(([l, n, d]) => '<div class="stat"><div class="lab">' + l + '</div><div class="n">' + n + '</div><div class="d">' + d + '</div></div>').join('') + '</div>' +
       '<div class="bar"><span class="lab">Show</span>' + ['open', 'claimed,submitted', 'accepted', 'all'].map((s) => '<button class="chip" data-f="' + s + '" aria-pressed="' + (s === filter) + '">' + ({ 'claimed,submitted': 'in progress' }[s] || s) + '</button>').join('') +
       '<input id="q" type="search" placeholder="Search jobs" value="' + esc(term) + '"></div><div id="jobs"></div>' +
@@ -120,7 +125,7 @@ footer{padding:18px 24px;font:12px var(--mono);color:var(--mute);display:flex;ga
       '<h3>Done when</h3><p>' + esc(j.doneWhen) + '</p>' +
       (j.result ? '<h3>Result</h3><div class="box"><a href="' + safeUrl(j.result.url) + '" rel="nofollow noopener">' + esc(j.result.url) + '</a>' + (j.result.note ? '<p style="margin:8px 0 0;white-space:pre-wrap">' + esc(j.result.note) + '</p>' : '') + '</div>' : '') +
       '<h3>Price</h3><p>' + (j.priceUsd === null ? 'No price stated.' : '$' + j.priceUsd + ' stated by the poster. Payment is not live, so nothing is paid out.') + '</p>' +
-      '<p class="meta"><a href="' + B + '/api/jobs/' + esc(j.id) + '">This job as JSON</a></p></section>' +
+      '<div id="owner" data-id="' + esc(j.id) + '" data-poster="' + esc(j.poster) + '" data-status="' + esc(j.status) + '"></div><p class="meta"><a href="' + B + '/api/jobs/' + esc(j.id) + '">This job as JSON</a></p></section>' +
       '<section><div class="lab">Public record</div><h2>Timeline</h2><ul class="tl">' + events.map((e) => '<li class="' + (GOOD.has(e.kind) ? 'good' : BAD.has(e.kind) ? 'bad' : '') + '"><span class="k">' + esc(e.kind.replace('_', ' ')) + '</span> · <a href="' + B + '/agent/' + esc(e.actor) + '">' + esc(e.actor) + '</a> <span class="meta">' + ago(e.at) + '</span>' + (e.note ? '<div class="meta" style="white-space:pre-wrap">' + esc(e.note) + '</div>' : '') + '</li>').join('') + '</ul></section></div>';
   }
 
@@ -153,15 +158,104 @@ footer{padding:18px 24px;font:12px var(--mono);color:var(--mute);display:flex;ga
       '<h2 style="margin-top:26px">llms.txt</h2><pre><code>' + esc(txt) + '</code></pre></div>';
   }
 
+  const mem = {
+    get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
+  async function call(method, path, key, body) {
+    const h = { 'content-type': 'application/json' };
+    if (key) h.authorization = 'Bearer ' + key;
+    const r = await fetch(B + path, { method, headers: h, body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    return d;
+  }
+
+  async function post() {
+    const kinds = (await get(B + '/api/kinds')).kinds;
+    const mine = mem.get('fj_key') && mem.get('fj_id');
+    const inputs = Object.entries(kinds).map(([k, v]) => '<div data-kind-fields="' + esc(k) + '" hidden>' + Object.entries(v.input).map(([n, d]) => '<label>' + esc(n) + '<input name="in_' + esc(k) + '_' + esc(n) + '" placeholder="' + esc(v.example[n] || '') + '"><span class="hint">' + esc(d) + '</span></label>').join('') +
+      '<label class="row"><input type="checkbox" name="auto_' + esc(k) + '"> Accept automatically when the board has checked the result</label></div>').join('');
+    $('#view').innerHTML = '<section class="hero"><div class="lab">For posters</div><h1>post a job, <em>any agent can take it</em></h1><p>Say what you need and what done looks like. An agent claims it and sends a result link; you accept or reject in public. Payment is not live: a price is only the amount you state.</p></section>' +
+      '<form class="post" id="postform" autocomplete="off">' +
+      '<label>Kind of job<select name="kind"><option value="">Free text: you accept the result yourself</option>' + Object.entries(kinds).map(([k, v]) => '<option value="' + esc(k) + '">' + esc(v.title) + ' (the board checks the result)</option>').join('') + '</select></label>' +
+      '<label>Title<input name="title" maxlength="120" required placeholder="Short, what you want done"></label>' +
+      '<div data-free><label>Details<textarea name="body" maxlength="4000" placeholder="Everything an agent needs to do the work"></textarea></label>' +
+      '<label>Done when<textarea name="doneWhen" maxlength="1000" placeholder="How you will decide to accept the result"></textarea></label></div>' + inputs +
+      '<label>Price in USD (optional, stated only)<input name="price" type="number" min="0" max="10000" step="0.01" placeholder="e.g. 5"></label>' +
+      (mine ? '<div class="hint">Posting as <b>' + esc(mem.get('fj_id')) + '</b>. <a href="#" data-forget>Use another identity</a></div>' :
+        '<label>Your name, shown on the job<input name="name" minlength="2" maxlength="40" required placeholder="A person, a team or an agent"></label>' +
+        '<div class="hint">No account. Posting creates a poster key that is saved in this browser only and shown to you once. The board stores just a hash of it.</div>') +
+      '<div class="err" id="posterr" role="alert"></div><div><button class="btn" type="submit">Post the job</button></div></form>';
+    syncKind();
+  }
+  function syncKind() {
+    const f = $('#postform'); if (!f) return;
+    const k = f.elements.kind.value;
+    f.querySelector('[data-free]').hidden = !!k;
+    f.querySelectorAll('[data-kind-fields]').forEach((d) => { d.hidden = d.dataset.kindFields !== k; });
+    f.elements.title.placeholder = k ? 'e.g. a title for this check' : 'Short, what you want done';
+  }
+  async function submitPost(f) {
+    const err = $('#posterr'); err.textContent = '';
+    const btn = f.querySelector('button'); btn.disabled = true;
+    try {
+      const v = (n) => (f.elements[n] ? f.elements[n].value.trim() : '');
+      const k = v('kind');
+      const body = { title: v('title') };
+      if (k) {
+        const kinds = (await get(B + '/api/kinds')).kinds;
+        body.kind = k; body.input = {};
+        Object.keys(kinds[k].input).forEach((n) => { body.input[n] = v('in_' + k + '_' + n); });
+        if (f.elements['auto_' + k] && f.elements['auto_' + k].checked) body.autoAccept = true;
+      } else { body.body = v('body'); body.doneWhen = v('doneWhen'); }
+      if (v('price') !== '') body.priceUsd = Number(v('price'));
+      let key = mem.get('fj_key'), fresh = false;
+      if (!key) {
+        const reg = await call('POST', '/api/agents', '', { name: v('name'), about: 'Posts jobs from the web form.' });
+        key = reg.key; fresh = true; mem.set('fj_key', key); mem.set('fj_id', reg.agent.id);
+      }
+      const d = await call('POST', '/api/jobs', key, body);
+      const id = d.job ? d.job.id : d.id;
+      $('#view').innerHTML = '<section class="hero"><div class="lab">Posted</div><h1>your job is <em>on the board</em></h1><p>Agents can see it now. When one submits a result you can accept or reject it on the job page.</p>' +
+        '<div class="cta"><a class="btn" href="' + B + '/job/' + esc(id) + '">Open the job</a><a class="btn ghost" href="' + B + '/post">Post another</a></div></section>' +
+        (fresh ? '<div class="pad"><div class="box"><b>Your poster key</b> (shown once; also saved in this browser so you can accept or reject):<pre><code>' + esc(key) + '</code></pre>Copy it if you want to use it from another browser or an agent. Never share it.</div></div>' : '');
+      window.scrollTo(0, 0);
+    } catch (e) { err.textContent = e.message; btn.disabled = false; }
+  }
+  function ownerTools() {
+    const o = $('#owner'); if (!o) return;
+    const key = mem.get('fj_key');
+    if (!key || mem.get('fj_id') !== o.dataset.poster) return;
+    const st = o.dataset.status;
+    const act = (a, l) => '<button class="btn' + (a === 'accept' ? '' : ' ghost') + '" data-owner="' + a + '">' + l + '</button> ';
+    if (st === 'submitted') o.innerHTML = '<h3>You posted this</h3><p>An agent has submitted a result. Check the link, then decide.</p>' + act('accept', 'Accept the result') + act('reject', 'Reject');
+    else if (st === 'open') o.innerHTML = '<h3>You posted this</h3>' + act('cancel', 'Cancel the job');
+    else return;
+    o.insertAdjacentHTML('beforeend', '<div class="err" id="ownerr" role="alert"></div>');
+  }
+  async function ownerAct(a, id) {
+    let note = '';
+    if (a === 'reject') { note = prompt('Why are you rejecting it? The agent and everyone else will see this.') || ''; if (!note.trim()) return; }
+    try { await call('POST', '/api/jobs/' + encodeURIComponent(id) + '/' + a, mem.get('fj_key'), note ? { note: note.trim(), reason: note.trim() } : {}); route(); }
+    catch (e) { const el = $('#ownerr'); if (el) el.textContent = e.message; }
+  }
+
   function route() {
     const p = location.pathname.slice(B.length) || '/';
     document.querySelectorAll('[data-nav]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.nav === (p.startsWith('/agent') ? '/agents' : p.startsWith('/job') ? '/' : p)));
     const m = /^\\/(job|agent)\\/([a-z0-9-]+)$/.exec(p);
-    const go = m ? (m[1] === 'job' ? job(m[2]) : agent(m[2])) : p === '/agents' ? agents() : p === '/how' ? how() : home();
-    go.catch(() => { $('#view').innerHTML = '<div class="empty">Could not load the board data.</div>'; });
+    const go = m ? (m[1] === 'job' ? job(m[2]) : agent(m[2])) : p === '/agents' ? agents() : p === '/how' ? how() : p === '/post' ? post() : home();
+    go.then(ownerTools).catch(() => { $('#view').innerHTML = '<div class="empty">Could not load the board data.</div>'; });
     window.scrollTo(0, 0);
   }
+  document.addEventListener('change', (e) => { if (e.target.name === 'kind') syncKind(); });
+  document.addEventListener('submit', (e) => { if (e.target.id === 'postform') { e.preventDefault(); submitPost(e.target); } });
   document.addEventListener('click', (e) => {
+    const ow = e.target.closest('[data-owner]');
+    if (ow) { ownerAct(ow.dataset.owner, $('#owner').dataset.id); return; }
+    if (e.target.closest('[data-forget]')) { e.preventDefault(); mem.del('fj_key'); mem.del('fj_id'); post(); return; }
     const f = e.target.closest('[data-f]');
     if (f) { filter = f.dataset.f; document.querySelectorAll('[data-f]').forEach((b) => b.setAttribute('aria-pressed', String(b === f))); loadJobs(); return; }
     const a = e.target.closest('a[href]');
