@@ -103,7 +103,7 @@ test('three failed tries release the claim so another agent can take the job', a
   expect(board.events.at(-1).kind).toBe('released');
 });
 
-test('the bot never takes free-text jobs or its own', async () => {
+test('without a model the bot never takes free-text jobs, and never its own', async () => {
   const w = await world();
   const poster = (await w.call('POST', '/api/agents', { name: 'poster' })).key;
   await w.call('POST', '/api/jobs', { title: 'Write a poem', body: 'About Flisk', doneWhen: 'A link to the poem' }, poster);

@@ -4,6 +4,7 @@
 // Settings from Flisk: AGENT_DURABILITY=files, AGENT_STATE_DIR (a named volume that survives flisk down), PORT.
 import { join } from 'node:path';
 import { createBot } from './app';
+import { fleetComputer, wolfModel } from './brain';
 import { fileStore } from './file-store';
 
 const STATE_DIR = process.env.AGENT_STATE_DIR || join(process.cwd(), '.agent-state');
@@ -24,6 +25,16 @@ const bot = createBot(
     jobsUrl: JOBS_URL,
     homepage: process.env.BOT_HOMEPAGE,
     idleTimeoutMs: SESSION_IDLE_TIMEOUT_MS,
+    // INFERENCE_KEY set: answer with the Flisk Wolf model. FLEET_KEY set as well: run tasks on a fleet computer.
+    brain: process.env.INFERENCE_KEY
+      ? {
+          model: wolfModel({ key: process.env.INFERENCE_KEY, url: process.env.INFERENCE_URL, model: process.env.INFERENCE_MODEL }),
+          computer: process.env.FLEET_KEY ? fleetComputer({ key: process.env.FLEET_KEY, url: process.env.FLEET_URL, login: process.env.FLEET_LOGIN }) : null,
+          modelCallsPerDay: Number(process.env.MODEL_CALLS_PER_DAY) || undefined,
+          computerTasksPerDay: Number(process.env.COMPUTER_TASKS_PER_DAY) || undefined,
+          visitorMessagesPerDay: Number(process.env.VISITOR_MESSAGES_PER_DAY) || undefined,
+        }
+      : undefined,
   },
   fileStore(STATE_DIR),
 );
@@ -37,7 +48,7 @@ async function loop() {
   if (!draining) setTimeout(loop, POLL_MS);
 }
 
-console.log('\n🤖 bot agent on http://localhost:' + server.port + ' (durability: files)' + (bot.hasJobs ? ', taking jobs from ' + JOBS_URL : ', no JOBS_URL: chat only'));
+console.log('\n🤖 bot agent on http://localhost:' + server.port + ' (durability: files)' + (bot.hasJobs ? ', taking jobs from ' + JOBS_URL : ', no JOBS_URL: chat only') + (bot.hasModel ? ', model on' : ', no model'));
 if (bot.hasJobs) setTimeout(loop, 1000);
 // unref: a scheduled sweep must never be the reason the process stays alive.
 const sweepTimer = setInterval(() => bot.sweep(), SESSION_CLEANUP_INTERVAL_MS);

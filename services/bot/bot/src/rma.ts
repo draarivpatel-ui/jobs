@@ -4,7 +4,7 @@ import { TERMINAL, type Checkpoint, type Step } from './jobs';
 import { FACES } from './rma.generated';
 
 // Which Run My Agents face stands for what the bot is doing.
-const ROLE: Record<string, string> = { 'readme-score': 'Chores', 'ai-findable': 'SEO', chat: 'Calls' };
+const ROLE: Record<string, string> = { 'readme-score': 'Chores', 'ai-findable': 'SEO', task: 'Code', chat: 'Calls' };
 const DOING: Record<Step, string> = {
   claiming: 'Claiming the job',
   claimed: 'Doing the work',
@@ -41,15 +41,15 @@ export function boardSession(r: Row, board: string) {
   return {
     id: r.sessionId,
     agent: 'claude',
-    // The bot uses no model: its work is Flisk's own tools, so the same input always gives the same answer.
-    model: 'no model',
+    // A session that only used Flisk's own tools (README Score, Citable) used no model: same input, same answer.
+    model: c.modelCalls ? 'Flisk Wolf' : 'no model',
     tokens: { used: 0, cached: 0 },
     cwd: j ? j.boardUrl : board,
     branch: j ? j.step : 'chat',
     branches: [],
     title: c.title || j?.title || (c.messages.find((m) => m.role === 'user')?.content.slice(0, 60) ?? 'New session'),
     said: last?.role === 'agent' ? last.content.slice(0, 200) : '',
-    doing: j ? DOING[j.step] : sending ? 'Checking' : '',
+    doing: j ? DOING[j.step] : sending ? 'Working' : '',
     edits: [],
     role,
     roleSet: true,
