@@ -7,7 +7,8 @@
 import { jobsClient, tick, TERMINAL, type Checkpoint, type JobsClient } from './jobs';
 import type { BotStore } from './stores';
 import { doWork, parseAsk } from './work';
-import { page, overview } from './ui';
+import { boardOptions, boardSessions } from './rma';
+import { FONTS, PAGE } from './rma.generated';
 
 export interface BotConfig {
   /** Jobs to take in one pass (default 1). A Worker takes a few per cron run. */
@@ -141,22 +142,61 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
         return json(200, { sessions: all.slice(0, SESSION_LIST_LIMIT).map((s) => ({ ...s, status: statusOf(s.sessionId) })), total: all.length });
       }
 
-      // The web view (bot.flisk.si): the same sessions, drawn like the Run My Agents app.
-      if (path === '/api/overview' && req.method === 'GET') {
-        const rows = (await store.recent(60)).map((s) => ({ ...s, status: statusOf(s.sessionId), active: activeTurns.has(s.sessionId) }));
-        return json(200, overview(rows, { name: cfg.name, board: cfg.boardUrl, loop: loopState }));
+      // The web view (bot.flisk.si): the real Run My Agents board page, answered from the bot's own sessions. The page
+      // calls these routes with relative URLs. What the bot cannot do (rename, pin, queue, upload) answers with an error
+      // the page shows as a message.
+      if (path === '/api/sessions' && req.method === 'GET') {
+        const rows = (await store.recent(60)).map((s) => ({ ...s, active: activeTurns.has(s.sessionId) }));
+        return json(200, boardSessions(rows, cfg.boardUrl || cfg.homepage || 'https://bot.flisk.si'));
+      }
+      if (path === '/api/options' && req.method === 'GET') return json(200, boardOptions());
+      // The page also asks for the kitchen board and the ratings. The bot has neither: empty answers, not 404s.
+      if (path === '/api/umux' && req.method === 'GET') return json(200, { ratings: [] });
+      if ((path === '/api/tasks' || path === '/api/kitchen') && req.method === 'GET') return json(200, { tasks: [], lanes: [] });
+      if ((path === '/api/send' || path === '/api/new') && req.method === 'POST') {
+        let body: any = {};
+        try {
+          body = JSON.parse((await req.text()) || '{}');
+        } catch {}
+        const text = String(body.text ?? '').trim();
+        if (!text) return json(400, { error: 'Type a repo (owner/name) or an https:// address first.' });
+        if (text.length > 2000) return json(400, { error: 'That message is too long.' });
+        const sessionId = path === '/api/new' ? 'chat-' + crypto.randomUUID().slice(0, 8) : String(body.id ?? '');
+        if (!ID.test(sessionId)) return json(400, { error: 'Pick a session first.' });
+        await queueSessionOperation(sessionId, async () => {
+          const checkpoint = await store.load(sessionId);
+          checkpoint.messages.push({ role: 'user', content: text, at: new Date().toISOString() });
+          const reply = await runTurn(checkpoint, text);
+          checkpoint.messages.push({ role: 'agent', content: reply, at: new Date().toISOString() });
+          await store.save(checkpoint);
+        });
+        return json(200, { id: sessionId });
+      }
+      if (path === '/api/delete' && req.method === 'POST') {
+        const id = String(JSON.parse((await req.text()) || '{}').id ?? '');
+        if (!ID.test(id)) return json(400, { error: 'Pick a session first.' });
+        if (id.startsWith('job-')) return json(400, { error: 'A job session is the bot\'s record of that job, so it stays.' });
+        if (activeTurns.has(id)) return json(409, { error: 'That session is busy right now.' });
+        await store.delete(id);
+        return json(200, {});
+      }
+      if (path.startsWith('/fonts/') && req.method === 'GET') {
+        const b64 = FONTS[path.slice(7)];
+        if (!b64) return json(404, { error: 'not_found' });
+        return new Response(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0)), { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });
       }
       if (path === '/robots.txt') return new Response('User-agent: *\nDisallow: /api/\nDisallow: /session\nDisallow: /*?\n', { headers: { 'content-type': 'text/plain' } });
       if (path === '/' && req.method === 'GET') {
-        return new Response(page(cfg.name, String(req.headers.get('x-forwarded-prefix') ?? '')), {
+        return new Response(PAGE, {
           headers: {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
             'x-content-type-options': 'nosniff',
-            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+            'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
           },
         });
       }
+      if (path.startsWith('/api/') && req.method === 'POST') return json(200, { error: 'The bot does not do that yet.' });
 
       return json(404, { error: 'not_found' });
     } catch (error) {

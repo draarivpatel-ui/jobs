@@ -46,6 +46,14 @@ bunx wrangler@4 deploy
 A Worker cannot keep a timer, so the bot takes jobs from a cron trigger (every 5 minutes) instead of a loop; sessions
 are rows in D1 and the same idle sweep runs on that trigger. Change the `route` in each `wrangler.toml` to your own domain.
 
+## The web view is the Run My Agents board
+
+The page at https://bot.flisk.si is the real [Run My Agents](https://github.com/flisk-sh/run-my-agents) board (same
+design, faces and animation), not a copy kept by hand. `bun scripts/sync-rma.ts [path to run-my-agents]` generates
+`services/bot/bot/src/rma.generated.ts` from a run-my-agents checkout (default `../run-my-agents`); `rma.ts` turns the
+bot's sessions into the JSON the board reads. To pick up board changes, run the script again and redeploy. Rename, pin,
+queue and upload answer "the bot does not do that yet".
+
 ## License
 
 MIT
