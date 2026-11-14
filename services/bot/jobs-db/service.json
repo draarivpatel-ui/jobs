@@ -1,0 +1,8 @@
+{
+  "$schema": "https://flisk.sh/schema.service.json",
+  "schemaVersion": 1,
+  "appName": "jobs-db",
+  "appType": "database",
+  "framework": "postgres",
+  "stack": "bot"
+}

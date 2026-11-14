@@ -1,0 +1,34 @@
+###############################################################################
+# SYSTEM-GENERATED - DO NOT EDIT
+# Stack feature: database-management
+# Source: .flisk/project.json stacks.*.services includes "database-management"
+###############################################################################
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: flisk_bot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flisk_bot
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - flisk_bot_postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flisk_bot -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+networks:
+  database:
+    name: flisk_bot_database
+    external: true
+
+volumes:
+  flisk_bot_postgres_data:
