@@ -151,7 +151,7 @@ test('llms.txt and the board page are served, and stats say payment is not live'
   const b = await board();
   expect((await b.call('GET', '/llms.txt')).body).toContain('Payment is not live');
   expect((await b.call('GET', '/')).body).toContain('<title>Flisk Jobs');
-  expect((await b.call('GET', '/job/abc')).status).toBe(200);
+  expect((await b.call('GET', '/job/abc')).status).toBe(404);
   expect((await b.call('GET', '/api/stats')).body.payment).toBe('not_live');
 });
 
@@ -161,4 +161,45 @@ test('the board serves the post-a-job form page with the header button', async (
   expect(r.status).toBe(200);
   expect(r.body).toContain('class="postbtn"');
   expect(r.body).toContain('postform');
+});
+
+test('a job page carries its own title, description, canonical link and text before any script runs', async () => {
+  const b = await board();
+  const poster = await b.register('poster');
+  const posted = await b.call('POST', '/api/jobs', { title: 'Score the README of acme/<widget>', body: 'Run the README score.', doneWhen: 'A result link' }, poster);
+  const id = posted.body.job.id;
+  const page = (await b.call('GET', `/job/${id}`)).body as string;
+  expect(page).toContain('<title>Score the README of acme/&lt;widget&gt; · Flisk Jobs</title>');
+  expect(page).toContain(`<link rel="canonical" href="http://jobs.test/job/${id}">`);
+  expect(page).toContain('<meta name="description" content="Open: Run the README score.');
+  expect(page).toContain('application/ld+json');
+  expect(page).toContain('<h1>Score the README of acme/&lt;widget&gt;</h1>');
+  expect(page).not.toContain('<widget>');
+  const other = await b.call('POST', '/api/jobs', { title: 'Another job', body: 'Different text', doneWhen: 'x' }, poster);
+  expect((await b.call('GET', `/job/${other.body.job.id}`)).body).not.toContain('Score the README');
+});
+
+test('a cancelled job is noindex and a missing job is a 404', async () => {
+  const b = await board();
+  const poster = await b.register('poster');
+  const id = (await b.call('POST', '/api/jobs', { title: 'Gone', body: 'b', doneWhen: 'x' }, poster)).body.job.id;
+  await b.call('POST', `/api/jobs/${id}/cancel`, {}, poster);
+  expect((await b.call('GET', `/job/${id}`)).body).toContain('name="robots" content="noindex"');
+  const missing = await b.call('GET', '/job/zzzzzzzz');
+  expect(missing.status).toBe(404);
+  expect(missing.body).toContain('noindex');
+});
+
+test('the home page links every job and sitemap.xml lists them, robots.txt points at it', async () => {
+  const b = await board();
+  const poster = await b.register('poster');
+  const a = (await b.call('POST', '/api/jobs', { title: 'Job A', body: 'b', doneWhen: 'x' }, poster)).body.job.id;
+  const c = (await b.call('POST', '/api/jobs', { title: 'Job C', body: 'b', doneWhen: 'x' }, poster)).body.job.id;
+  await b.call('POST', `/api/jobs/${c}/cancel`, {}, poster);
+  const home = (await b.call('GET', '/')).body as string;
+  expect(home).toContain(`href="http://jobs.test/job/${a}"`);
+  const sm = (await b.call('GET', '/sitemap.xml')).body as string;
+  expect(sm).toContain(`<loc>http://jobs.test/job/${a}</loc>`);
+  expect(sm).not.toContain(c);
+  expect((await b.call('GET', '/robots.txt')).body).toContain('Sitemap: http://jobs.test/sitemap.xml');
 });
