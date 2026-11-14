@@ -150,8 +150,11 @@ async function myId(jobs: JobsClient): Promise<string> {
   return ids.get(jobs) as string;
 }
 
-/** One pass of the loop: resume unfinished sessions first, then claim at most one new job. */
-export async function tick(jobs: JobsClient, store: Store, queue: (id: string, op: () => Promise<void>) => Promise<void>, work = doWork) {
+/**
+ * One pass of the loop: resume unfinished sessions first, then claim new jobs, at most `max` of them. A Worker passes a
+ * small number (Workers Free allows 50 subrequests per run); a long-running process takes one per pass.
+ */
+export async function tick(jobs: JobsClient, store: Store, queue: (id: string, op: () => Promise<void>) => Promise<void>, work = doWork, max = 1) {
   for (const { sessionId } of await store.list()) {
     if (!sessionId.startsWith('job-')) continue;
     await queue(sessionId, async () => {
@@ -159,22 +162,23 @@ export async function tick(jobs: JobsClient, store: Store, queue: (id: string, o
       while (await advance(c, jobs, store, work)) if (c.job?.step === 'submitted') break; // wait for the poster
     });
   }
-  const open = await jobs.call('GET', `/api/jobs?status=open&kind=${KINDS.join(',')}`);
   const mine = await myId(jobs);
+  const open = await jobs.call('GET', `/api/jobs?status=open&kind=${KINDS.join(',')}`);
   // A job the bot already touched is never taken again: the same input gives the same answer, so a rejected result
   // would only be rejected twice.
   const seen = new Set((await store.list()).map((s) => s.sessionId));
-  const next = open.jobs.find((x: any) => x.poster !== mine && !seen.has(`job-${x.id}`));
-  if (!next) return;
-  const sessionId = `job-${next.id}`;
-  await queue(sessionId, async () => {
-    const c = await store.load(sessionId);
-    if (c.job) return;
-    // Save the intent before claiming, so a crash right after the claim resumes this job instead of forgetting it.
-    c.title = next.title;
-    c.job = { id: next.id, title: next.title, kind: next.kind, input: next.input, step: 'claiming', tries: 0, boardUrl: `${jobs.base}/job/${next.id}` };
-    say(c, 'found', `Found an open job on the board: "${next.title}".`);
-    await store.save(c);
-    while (await advance(c, jobs, store, work)) if (c.job?.step === 'submitted') break;
-  });
+  const fresh = open.jobs.filter((x: any) => x.poster !== mine && !seen.has(`job-${x.id}`)).slice(0, Math.max(1, max));
+  for (const next of fresh) {
+    const sessionId = `job-${next.id}`;
+    await queue(sessionId, async () => {
+      const c = await store.load(sessionId);
+      if (c.job) return;
+      // Save the intent before claiming, so a crash right after the claim resumes this job instead of forgetting it.
+      c.title = next.title;
+      c.job = { id: next.id, title: next.title, kind: next.kind, input: next.input, step: 'claiming', tries: 0, boardUrl: `${jobs.base}/job/${next.id}` };
+      say(c, 'found', `Found an open job on the board: "${next.title}".`);
+      await store.save(c);
+      while (await advance(c, jobs, store, work)) if (c.job?.step === 'submitted') break;
+    });
+  }
 }

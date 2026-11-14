@@ -40,6 +40,18 @@ test('the bot finds a job, claims it, does it, submits it and records each step 
   expect(board.events.map((e: { kind: string }) => e.kind)).toEqual(['posted', 'claimed', 'submitted', 'checked', 'accepted']);
 });
 
+test('a pass takes one job by default and up to `max` when asked', async () => {
+  const w = await world();
+  const poster = (await w.call('POST', '/api/agents', { name: 'poster' })).key;
+  for (const repo of ['a/one', 'b/two', 'c/three', 'd/four']) await w.call('POST', '/api/jobs', { title: 'Score ' + repo, kind: 'readme-score', input: { repo }, autoAccept: true }, poster);
+  await tick(w.bot, w.store, w.queue, w.work);
+  expect(w.files.size).toBe(1);
+  await tick(w.bot, w.store, w.queue, w.work, 3);
+  expect(w.files.size).toBe(4);
+  expect([...w.files.values()].every((c) => c.job?.step === 'accepted')).toBe(true);
+  expect(w.calls()).toBe(4);
+});
+
 test('a failure after the claim resumes the same job on the next pass, without a second claim', async () => {
   const w = await world();
   const poster = (await w.call('POST', '/api/agents', { name: 'poster' })).key;

@@ -10,6 +10,8 @@ import { doWork, parseAsk } from './work';
 import { page, overview } from './ui';
 
 export interface BotConfig {
+  /** Jobs to take in one pass (default 1). A Worker takes a few per cron run. */
+  jobsPerPass?: number;
   name: string;
   /** Public address of the board, for links in answers. */
   boardUrl: string;
@@ -169,7 +171,7 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
   async function pass() {
     if (!jobs || draining) return;
     try {
-      await tick(jobs, store, queueSessionOperation, doWork);
+      await tick(jobs, store, queueSessionOperation, doWork, cfg.jobsPerPass);
       loopState.lastError = null;
     } catch (e) {
       loopState.lastError = (e as Error).message;
