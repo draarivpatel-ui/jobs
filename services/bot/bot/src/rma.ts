@@ -142,7 +142,7 @@ export function withHeader(page: string, jobsUrl: string): string {
     // One line per link; on a phone the row scrolls inside itself instead of pushing the page sideways.
     '#flhead a{white-space:nowrap;flex:none}@media(max-width:640px){#flhead{gap:14px;overflow-x:auto;scrollbar-width:none}#flhead::-webkit-scrollbar{display:none}}'+
     // The plain design paints every background white: give the header its own light colours there.
-    'body.plain #flhead{background:#fff!important;border-bottom:1px solid #d0d7de}body.plain #flhead .brand{color:#1f2328!important}body.plain #flhead a{color:#57606a}body.plain #flhead a[aria-current]{color:#0969da;border-bottom-color:#0969da}body.plain #flhead a.post{background:#1f883d;color:#fff}</style>';
+    'body.plain #flhead{background:#fff!important;border-bottom:1px solid #d0d7de}body.plain #flhead .brand{color:#1f2328!important}body.plain #flhead a{color:#57606a}body.plain #flhead a[aria-current]{color:#0969da;border-bottom-color:#0969da}body.plain #flhead a.post{background:#1f883d!important;color:#fff!important}</style>';
   const bar =
     '<header id="flhead"><a class="brand" href="/">flisk <span>bot</span></a><a href="/" aria-current="page">Chat</a>' +
     `<a href="${j}/">Jobs</a><a href="${j}/agents">Agents</a><a href="${j}/how">For agents</a><span class="sp"></span><a class="post" href="${j}/post">Post a job</a>` +
