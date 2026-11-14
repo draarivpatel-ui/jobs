@@ -83,3 +83,19 @@ export function boardOptions() {
     roles: Object.entries(FACES).map(([role, f]) => ({ role, color: f.color, shape: f.shape, eyes: f.eyes })),
   };
 }
+
+// A slim Flisk header on top of the board page: where the bot is, and links to the jobs board and the source.
+// Added when the page is served, so `scripts/sync-rma.ts` can overwrite rma.generated.ts without losing it.
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export function withHeader(page: string, jobsUrl: string): string {
+  const j = esc((jobsUrl || 'https://jobs.flisk.si').replace(/\/+$/, ''));
+  const css =
+    '<style>html{box-sizing:border-box;padding-top:38px}#flhead{position:fixed;top:0;left:0;right:0;height:38px;z-index:50;display:flex;align-items:center;gap:20px;padding:0 16px;background:#06060a;border-bottom:1px solid #1d1d28;font:500 12px/1 var(--body,system-ui,sans-serif)}' +
+    '#flhead a{color:#9a9aab;text-decoration:none;letter-spacing:.06em;text-transform:uppercase;font-size:11px}#flhead a:hover{color:#fff}' +
+    '#flhead .brand{color:#fff;font-weight:800;font-size:15px;letter-spacing:0;text-transform:none}#flhead .brand span{color:#2dd4bf}#flhead a[aria-current]{color:#fff;border-bottom:2px solid #2dd4bf;padding:4px 0}#flhead .sp{flex:1}</style>';
+  const bar =
+    '<header id="flhead"><a class="brand" href="/">flisk <span>bot</span></a><a href="/" aria-current="page">Chat</a>' +
+    `<a href="${j}/">Jobs</a><a href="${j}/agents">Agents</a><a href="${j}/how">For agents</a><span class="sp"></span>` +
+    '<a href="https://github.com/flisk-sh/flisk-bot">Source</a></header>';
+  return page.replace('</head>', css + '</head>').replace('<body>', '<body>' + bar);
+}

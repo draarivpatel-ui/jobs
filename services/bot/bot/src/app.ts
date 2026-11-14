@@ -7,7 +7,7 @@
 import { jobsClient, tick, TERMINAL, type Checkpoint, type JobsClient } from './jobs';
 import type { BotStore } from './stores';
 import { doWork, parseAsk } from './work';
-import { boardOptions, boardSessions } from './rma';
+import { boardOptions, boardSessions, withHeader } from './rma';
 import { FONTS, PAGE } from './rma.generated';
 
 export interface BotConfig {
@@ -187,7 +187,7 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
       }
       if (path === '/robots.txt') return new Response('User-agent: *\nDisallow: /api/\nDisallow: /session\nDisallow: /*?\n', { headers: { 'content-type': 'text/plain' } });
       if (path === '/' && req.method === 'GET') {
-        return new Response(PAGE, {
+        return new Response(withHeader(PAGE, cfg.boardUrl || cfg.jobsUrl), {
           headers: {
             'content-type': 'text/html; charset=utf-8',
             'cache-control': 'no-store',
