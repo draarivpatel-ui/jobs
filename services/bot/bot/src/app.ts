@@ -20,6 +20,8 @@ export interface BotConfig {
   /** Address the bot calls the board on. Empty: chat only. */
   jobsUrl: string;
   homepage?: string;
+  /** fleet.flisk.si, where the bot's computers come from. The /computers page lists its providers. */
+  fleetUrl?: string;
   idleTimeoutMs?: number;
   durability?: string;
   /** The model (Flisk Inference) and the computers (fleet). Absent: the bot only runs Flisk's own tools, as before. */
@@ -62,6 +64,24 @@ export function createBot(cfg: BotConfig, store: BotStore, f: typeof fetch = fet
   const queues = new Map<string, Promise<void>>();
   let draining = false;
   let inFlight = 0;
+  // fleet's providers, from its public price list, for the /computers page. Cached 5 minutes.
+  const fleetBase = (cfg.fleetUrl || 'https://fleet.flisk.si').replace(/\/+$/, '');
+  let fleetRows = { at: 0, rows: null as null | { label: string; pricePerHour: number | null; status: string }[] };
+  async function fleetProviders() {
+    if (fleetRows.rows && Date.now() - fleetRows.at < 300_000) return fleetRows.rows;
+    try {
+      const res = await f(`${fleetBase}/v1/prices`, { signal: AbortSignal.timeout(3000) });
+      const rows = res.ok ? ((await res.json()) as any)?.prices : null;
+      if (!Array.isArray(rows)) throw new Error('no prices');
+      const clean = rows
+        .filter((r: any) => typeof r?.provider === 'string' && r.provider !== 'demo')
+        .map((r: any) => ({ label: String(r.label || r.provider).slice(0, 60), pricePerHour: typeof r.pricePerHour === 'number' ? r.pricePerHour : null, status: String(r.status || '') }));
+      fleetRows = { at: Date.now(), rows: clean };
+      return clean;
+    } catch {
+      return fleetRows.rows;
+    }
+  }
 
   const HELP = brain
     ? `I am ${cfg.name}. Ask me anything and I answer with the Flisk Wolf model${brain.computer ? ', and I can run a small task on a throwaway computer' : ''}. Send just a GitHub repo (owner/name) to score its README, or just an https:// address to check whether AI search can find it.`
@@ -323,6 +343,19 @@ I also take these jobs from the open jobs board by myself. Each job gets its own
           200,
           `${j.title} · ${cfg.name}`,
           `<h1>${escHtml(j.title)}</h1><p class="m">Done by ${escHtml(cfg.name)} with the Flisk Wolf model${steps ? ' on a throwaway computer' : ', without a computer'}. <a href="${escHtml(j.boardUrl)}">The job on the board</a></p><h2>Answer</h2><pre>${escHtml(j.result.text ?? j.result.summary)}</pre>${steps ? `<h2>What was run</h2>${steps}` : ''}`,
+        );
+      }
+      // The sandbox providers the bot's throwaway computers can come from, live from fleet.
+      if (path === '/computers' && req.method === 'GET') {
+        const rows = await fleetProviders();
+        const fleet = escHtml(fleetBase);
+        const list = rows?.length
+          ? `<table><tr><th>Provider</th><th>From, per hour</th><th>Status</th></tr>${rows.map((r) => `<tr><td>${escHtml(r.label)}</td><td>${r.pricePerHour == null ? '-' : `$${r.pricePerHour.toFixed(3)}`}</td><td>${escHtml(r.status)}</td></tr>`).join('')}</table>`
+          : '<p>fleet did not answer just now, so the list is not here. Try again in a minute.</p>';
+        return new Response(
+          `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Computers · ${escHtml(cfg.name)}</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 16px;color:#111;background:#fafaf7}h1{font-size:24px}p.m{color:#555;font-size:14px}a{color:#0a6}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd}th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#555}</style>` +
+            `<p class="m"><a href="/">${escHtml(cfg.name)}</a></p><h1>Computers</h1><p>When a job needs something run, ${escHtml(cfg.name)} starts a throwaway computer on <a href="${fleet}">fleet</a> and deletes it when the job ends. fleet picks the cheapest of these providers that works. The list is read live from fleet.</p>${list}<p class="m"><a href="${fleet}/v1/prices">fleet's price list</a> · <a href="https://host.flisk.si/rating">which providers need no card</a></p></html>`,
+          { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=300', 'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'" } },
         );
       }
       if (path.startsWith('/fonts/') && req.method === 'GET') {
