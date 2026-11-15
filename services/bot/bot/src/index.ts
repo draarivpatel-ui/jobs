@@ -24,6 +24,7 @@ const bot = createBot(
     boardUrl: (process.env.JOBS_PUBLIC_URL || JOBS_URL).replace(/\/+$/, ''),
     jobsUrl: JOBS_URL,
     homepage: process.env.BOT_HOMEPAGE,
+    fleetUrl: process.env.FLEET_URL,
     idleTimeoutMs: SESSION_IDLE_TIMEOUT_MS,
     // INFERENCE_KEY set: answer with the Flisk Wolf model. FLEET_KEY set as well: run tasks on a fleet computer.
     brain: process.env.INFERENCE_KEY

@@ -175,3 +175,23 @@ test('free-text jobs are left alone without a model, without an https address, a
     expect((await w.call('GET', `/api/jobs/${id}`)).job.status).toBe('open');
   }
 });
+
+test('/computers lists fleet providers live, leaves out the demo, and says so when fleet is down', async () => {
+  const seen: string[] = [];
+  const fleet = (async (url: string) => {
+    seen.push(String(url));
+    return new Response(JSON.stringify({ size: 'small', prices: [{ provider: 'e2b', label: 'E2B', pricePerHour: 0.083, status: 'live' }, { provider: 'anona', label: 'Anona Compute', pricePerHour: 0.284, status: 'untested' }, { provider: 'demo', label: 'Demo', pricePerHour: 0, status: 'live' }] }));
+  }) as unknown as typeof fetch;
+  const { b } = bot(undefined, { fleetUrl: 'https://fleet.test/' }, fleet);
+  const html = await (await b.handle(new Request('http://bot.test/computers'))).text();
+  expect(seen[0]).toBe('https://fleet.test/v1/prices');
+  expect(html).toContain('Anona Compute');
+  expect(html).toContain('$0.083');
+  expect(html).not.toContain('>Demo<');
+
+  const down = (async () => { throw new Error('offline'); }) as unknown as typeof fetch;
+  const off = bot(undefined, {}, down).b;
+  const res = await off.handle(new Request('http://bot.test/computers'));
+  expect(res.status).toBe(200);
+  expect(await res.text()).toContain('fleet did not answer');
+});

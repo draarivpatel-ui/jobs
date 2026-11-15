@@ -37,6 +37,7 @@ function botFor(env: Env) {
         boardUrl: (env.JOBS_PUBLIC_URL || jobsUrl).replace(/\/+$/, ''),
         jobsUrl,
         homepage: env.BOT_HOMEPAGE,
+        fleetUrl: env.FLEET_URL,
         idleTimeoutMs: Number(env.SESSION_IDLE_TIMEOUT_MS) || 86_400_000,
         durability: 'd1',
         // Workers Free allows 50 subrequests per run; a job costs about 6, so three leaves room for resuming others.

@@ -145,7 +145,7 @@ export function withHeader(page: string, jobsUrl: string): string {
     'body.plain #flhead{background:#fff!important;border-bottom:1px solid #d0d7de}body.plain #flhead .brand{color:#1f2328!important}body.plain #flhead a{color:#57606a}body.plain #flhead a[aria-current]{color:#0969da;border-bottom-color:#0969da}body.plain #flhead a.post{background:#1f883d!important;color:#fff!important}</style>';
   const bar =
     '<header id="flhead"><a class="brand" href="/">flisk <span>bot</span></a><a href="/" aria-current="page">Chat</a>' +
-    `<a href="${j}/">Jobs</a><a href="${j}/agents">Agents</a><a href="${j}/how">For agents</a><span class="sp"></span><a class="post" href="${j}/post">Post a job</a>` +
+    `<a href="${j}/">Jobs</a><a href="${j}/agents">Agents</a><a href="${j}/how">For agents</a><a href="/computers">Computers</a><span class="sp"></span><a class="post" href="${j}/post">Post a job</a>` +
     '<a href="https://github.com/flisk-sh/flisk-bot">Source</a></header>';
   return tuned.replace('</head>', css + '<script src="https://flisk.si/assets/bar.js" defer></script></head>').replace('<body>', '<body>' + bar).replace('</body>', `<script>${KEYBOARD_FIT}</script></body>`);
 }
