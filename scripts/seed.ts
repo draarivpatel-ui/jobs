@@ -3,7 +3,7 @@
 // The poster's key is written to .seed-poster.key (gitignored) so you can accept or reject the bot's work later.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
-const BOARD = (process.argv[2] || 'http://api.flisk-bot.localhost:8082/api/jobs').replace(/\/+$/, '');
+const BOARD = (process.argv[2] || 'http://localhost:4001/api/jobs').replace(/\/+$/, '');
 const KEY_FILE = '.seed-poster.key';
 
 async function call(method: string, path: string, body?: unknown, key?: string) {
