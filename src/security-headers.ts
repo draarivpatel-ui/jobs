@@ -12,7 +12,7 @@ export function withSecurityHeaders(res: Response): Response {
   const out = new Response(res.body, res); // headers of some Responses are immutable: copy
   for (const [name, value] of Object.entries(BASELINE)) if (!out.headers.has(name)) out.headers.set(name, value);
   const csp = out.headers.get('content-security-policy');
-  if (csp === null) out.headers.set('content-security-policy', "frame-ancestors 'self'");
+  if (csp === null) out.headers.set('content-security-policy', "default-src 'none'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
   else if (!/frame-ancestors/i.test(csp)) out.headers.set('content-security-policy', `${csp}; frame-ancestors 'self'`);
   return out;
 }

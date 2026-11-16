@@ -284,3 +284,12 @@ test('the home page links every job and sitemap.xml lists them, robots.txt point
   expect(sm).not.toContain(c);
   expect((await b.call('GET', '/robots.txt')).body).toContain('Sitemap: http://jobs.test/sitemap.xml');
 });
+
+test('HEAD answers like GET with the same status and headers and no body', async () => {
+  const { call } = await board();
+  const get = await call('GET', '/');
+  const head = await call('HEAD', '/');
+  expect(get.status).toBe(200);
+  expect(head.status).toBe(200);
+  expect(head.body).toBe('');
+});
