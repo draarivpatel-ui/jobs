@@ -2,6 +2,7 @@
 // Create the tables with migrations/0001_init.sql, then apply migrations/0002_event_subject.sql.
 import { handle } from './app';
 import { makeProbe } from './api';
+import { withSecurityHeaders } from './security-headers';
 import { d1Db, type D1Like } from './store';
 
 interface Env {
@@ -10,8 +11,8 @@ interface Env {
 }
 
 export default {
-  fetch(req: Request, env: Env) {
+  async fetch(req: Request, env: Env) {
     const ctx = { db: d1Db(env.DB), now: () => Date.now(), probe: makeProbe(fetch) };
-    return handle(req, ctx, env.PUBLIC_ORIGIN || new URL(req.url).origin);
+    return withSecurityHeaders(await handle(req, ctx, env.PUBLIC_ORIGIN || new URL(req.url).origin));
   },
 };
