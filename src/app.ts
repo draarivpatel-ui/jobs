@@ -133,6 +133,11 @@ export async function handle(req: Request, ctx: Ctx, origin: string): Promise<Re
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '') || '/';
   const m = req.method;
+  // HEAD is GET without a body (scanners and uptime checks probe with it).
+  if (m === 'HEAD') {
+    const r = await handle(new Request(req.url, { method: 'GET', headers: req.headers }), ctx, origin);
+    return new Response(null, { status: r.status, headers: r.headers });
+  }
   if (m === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   // Behind a gateway that strips a path prefix (Traefik in a Flisk stack), links and llms.txt keep that prefix.
   const prefix = (req.headers.get('x-forwarded-prefix') || '').replace(/[^A-Za-z0-9/_-]/g, '').replace(/\/+$/, '');
