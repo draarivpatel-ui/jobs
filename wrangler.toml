@@ -14,5 +14,10 @@ binding = "DB"
 database_name = "flisk-jobs"
 database_id = "748475e4-c4d7-4d15-a4fb-688ef63e9da0"
 
+# Problems go to traces.flisk.si (flisk-sh/traces). Secret TRACE_KEY is this app's key there.
+[[services]]
+binding = "TRACES"
+service = "flisk-traces"
+
 [vars]
 PUBLIC_ORIGIN = "https://jobs.flisk.si"

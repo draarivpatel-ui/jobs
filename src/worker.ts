@@ -3,16 +3,17 @@
 import { handle } from './app';
 import { makeProbe } from './api';
 import { withSecurityHeaders } from './security-headers';
+import { traced, type TraceEnv } from './trace';
 import { d1Db, type D1Like } from './store';
 
-interface Env {
+interface Env extends TraceEnv {
   DB: D1Like;
   PUBLIC_ORIGIN?: string;
 }
 
 export default {
-  async fetch(req: Request, env: Env) {
+  fetch: traced(async (req: Request, env: Env) => {
     const ctx = { db: d1Db(env.DB), now: () => Date.now(), probe: makeProbe(fetch) };
     return withSecurityHeaders(await handle(req, ctx, env.PUBLIC_ORIGIN || new URL(req.url).origin));
-  },
+  }),
 };
