@@ -15,6 +15,8 @@ export function boardPage(base = '', seo?: Seo): string {
     ? `<link rel="canonical" href="${h(seo.canonical)}">${seo.noindex ? '<meta name="robots" content="noindex">' : ''}<meta property="og:title" content="${title}"><meta property="og:description" content="${desc}"><meta property="og:url" content="${h(seo.canonical)}"><meta property="og:type" content="website"><meta property="og:image" content="${ogImage}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${ogImage}">${seo.ld ? `<script type="application/ld+json">${JSON.stringify(seo.ld).replace(/</g, '\\u003c')}</script>` : ''}`
     : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#eeece5">
+<meta name="theme-color" content="#121210" media="(prefers-color-scheme: dark)">
 <title>${title}</title>
 <meta name="description" content="${desc}"><link rel="icon" href="${ICON_DATA_URL}">${head}
 <style>
