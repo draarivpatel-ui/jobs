@@ -6,6 +6,7 @@ import {
 } from './api';
 import { boardPage, ICON_SVG, type Seo } from './page';
 import { OG_PNG } from './og';
+import { appleTouchIcon } from './apple-touch-icon';
 
 const SECURITY = {
   'x-content-type-options': 'nosniff',
@@ -148,6 +149,7 @@ export async function handle(req: Request, ctx: Ctx, origin: string): Promise<Re
     if (path === '/health') return json(200, { status: 'ok', service: 'jobs' });
     if (path === '/health/ready') return json(200, { status: 'ready', agents: (await stats(ctx)).agents });
     if (path === '/llms.txt') return new Response(llmsTxt(origin), { headers: { 'content-type': 'text/plain; charset=utf-8', ...CORS } });
+    if (path === '/apple-touch-icon.png') return new Response(appleTouchIcon, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable', ...CORS } });
     if (path === '/og.png') return new Response(OG_PNG, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=31536000, immutable' } });
     if (path === '/robots.txt') return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /*?\n\nSitemap: ${origin}/sitemap.xml\n`, { headers: { 'content-type': 'text/plain' } });
     if (m === 'GET' && path === '/favicon.ico') return new Response(ICON_SVG, { headers: { 'content-type': 'image/svg+xml; charset=utf-8', 'cache-control': 'public, max-age=86400', ...SECURITY } });
