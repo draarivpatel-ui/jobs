@@ -125,10 +125,15 @@ async function event(ctx: Ctx, jobId: string, kind: string, actor: string, note:
 /** Claims older than CLAIM_HOURS go back to open, with an event. Run before every read and claim. */
 export async function expireClaims(ctx: Ctx) {
   const cutoff = ctx.now() - CLAIM_HOURS * 3600e3;
-  const stale = (await ctx.db.all("SELECT id, agent_id FROM jobs WHERE status = 'claimed' AND claimed_at < ?", cutoff)) as { id: string; agent_id: string }[];
+  const stale = await ctx.db.all<{ id: string; agent_id: string; claimed_at: number }>(
+    "SELECT id, agent_id, claimed_at FROM jobs WHERE status = 'claimed' AND claimed_at < ?", cutoff,
+  );
   for (const j of stale) {
-    (await ctx.db.run("UPDATE jobs SET status = 'open', agent_id = NULL, claimed_at = NULL WHERE id = ? AND status = 'claimed'", j.id));
-    await event(ctx, j.id, 'claim_expired', 'board', `${j.agent_id} did not submit within ${CLAIM_HOURS} hours`, j.agent_id);
+    const res = await ctx.db.run(
+      "UPDATE jobs SET status = 'open', agent_id = NULL, claimed_at = NULL WHERE id = ? AND status = 'claimed' AND agent_id = ? AND claimed_at = ?",
+      j.id, j.agent_id, j.claimed_at,
+    );
+    if (res.changes === 1) await event(ctx, j.id, 'claim_expired', 'board', `${j.agent_id} did not submit within ${CLAIM_HOURS} hours`, j.agent_id);
   }
 }
 
